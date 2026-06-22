@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS — Golf Course AI</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000810;font-family:'Rajdhani',sans-serif;color:#00d4ff}
+
+/* ── SCANLINES ── */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.012) 2px,rgba(0,212,255,.012) 4px);pointer-events:none;z-index:9999}
+
+/* ── ANIMATIONS ── */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes spinr{to{transform:rotate(-360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes glow-pulse{0%,100%{box-shadow:0 0 20px rgba(0,212,255,.4),0 0 60px rgba(0,212,255,.15),inset 0 0 30px rgba(0,212,255,.08)}50%{box-shadow:0 0 40px rgba(0,212,255,.7),0 0 100px rgba(0,212,255,.3),0 0 160px rgba(0,212,255,.1),inset 0 0 50px rgba(0,212,255,.15)}}
+@keyframes avatar-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}
+@keyframes orb-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes ring1{to{transform:rotate(360deg)}}
+@keyframes ring2{to{transform:rotate(-360deg)}}
+@keyframes ring3{to{transform:rotate(240deg)}}
+@keyframes energy-wave{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-400}}
+@keyframes particle{0%{transform:translateY(0) scale(1);opacity:.8}100%{transform:translateY(-60px) scale(0);opacity:0}}
+@keyframes scanline-move{0%{top:-4px}100%{top:calc(100% + 4px)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,90%,100%{opacity:1}95%{opacity:0}}
+@keyframes holo-flicker{0%,97%,100%{opacity:1}98%{opacity:.85}99%{opacity:.95}}
+@keyframes data-scroll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+@keyframes mouth-talk{0%,100%{d:path("M 62 88 Q 80 92 98 88")}25%{d:path("M 62 88 Q 80 98 98 88")}50%{d:path("M 62 86 Q 80 90 98 86")}75%{d:path("M 62 88 Q 80 96 98 88")}}
+@keyframes eye-glow{0%,100%{filter:drop-shadow(0 0 3px #00d4ff)}50%{filter:drop-shadow(0 0 8px #00d4ff) drop-shadow(0 0 16px rgba(0,212,255,.6))}}
+@keyframes neural-pulse{0%{stroke-dashoffset:1000}100%{stroke-dashoffset:0}}
+@keyframes boot-seq{0%{opacity:0}100%{opacity:1}}
+
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-rows:54px 1fr;grid-template-columns:1fr 340px;height:100vh;gap:0}
+#header{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:rgba(0,8,20,.96);border-bottom:1px solid rgba(0,212,255,.2);backdrop-filter:blur(12px);z-index:100;position:relative}
+#main{grid-column:1;grid-row:2;overflow:hidden;display:flex;flex-direction:column}
+#sidebar{grid-column:2;grid-row:2;display:flex;flex-direction:column;background:rgba(0,5,15,.95);border-left:1px solid rgba(0,212,255,.15);overflow:hidden}
+
+/* ── HEADER ── */
+.logo-ring-wrap{position:relative;width:36px;height:36px;flex-shrink:0}
+.logo-ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid transparent}
+.logo-dot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#00d4ff;border-radius:50%;box-shadow:0 0 14px #00d4ff,0 0 28px rgba(0,212,255,.5)}
+#logo-svg{width:36px;height:36px}
+.header-title{display:flex;align-items:baseline;gap:12px}
+.header-title h1{font-size:20px;font-weight:700;letter-spacing:.22em;color:#00d4ff;text-shadow:0 0 20px rgba(0,212,255,.6)}
+.header-title span{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.4);letter-spacing:.18em;text-transform:uppercase}
+.header-meta{font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.4);text-align:right;line-height:1.7}
+.status-dot{width:8px;height:8px;background:#00ff88;border-radius:50%;box-shadow:0 0 10px #00ff88;animation:pulse 2.5s ease-in-out infinite}
+
+/* ── NAV TABS ── */
+#nav{display:flex;gap:0;padding:0 20px;background:rgba(0,8,20,.9);border-bottom:1px solid rgba(0,212,255,.12);overflow-x:auto;flex-shrink:0}
+.nav-tab{background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.12em;font-size:12px;padding:9px 14px;color:rgba(0,212,255,.38);white-space:nowrap;transition:all .2s}
+.nav-tab:hover{color:rgba(0,212,255,.75)}
+.nav-tab.active{color:#00d4ff;border-bottom:2px solid #00d4ff;text-shadow:0 0 10px #00d4ff}
+
+/* ── SCREEN CONTENT ── */
+#screen-wrap{flex:1;overflow-y:auto;padding:16px 20px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
+.screen{display:none;animation:fadeIn .3s ease both}
+.screen.active{display:block}
+
+/* ── HUD PANELS ── */
+.hud-grid{display:grid;gap:12px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-full{grid-template-columns:1fr}
+.hud-panel{position:relative;background:rgba(0,10,24,.88);border:1px solid rgba(0,212,255,.2);border-radius:4px;padding:14px 16px;backdrop-filter:blur(6px)}
+.hud-panel.glow{box-shadow:0 0 20px rgba(0,212,255,.08),inset 0 0 16px rgba(0,212,255,.02)}
+.hud-panel::before,.hud-panel::after{content:'';position:absolute;width:10px;height:10px;border-color:rgba(0,212,255,.5);border-style:solid}
+.hud-panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px}
+.hud-panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+.panel-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.45);letter-spacing:.16em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.panel-label::after{content:'';flex:1;height:1px;background:rgba(0,212,255,.12)}
+.data-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,212,255,.07);font-family:'Share Tech Mono',monospace;font-size:12px}
+.data-row:last-child{border-bottom:none}
+.dr-lbl{color:rgba(0,212,255,.42)}
+.dr-val{color:#00d4ff}
+.hud-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:2px;font-family:'Share Tech Mono',monospace;letter-spacing:.04em}
+.badge-green{background:rgba(0,255,136,.1);color:#00ff88;border:1px solid rgba(0,255,136,.28)}
+.badge-amber{background:rgba(255,170,0,.1);color:#ffaa00;border:1px solid rgba(255,170,0,.28)}
+.badge-red{background:rgba(255,59,59,.1);color:#ff3b3b;border:1px solid rgba(255,59,59,.28)}
+.badge-cyan{background:rgba(0,212,255,.1);color:#00d4ff;border:1px solid rgba(0,212,255,.28)}
+.status-led{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+.led-green{background:#00ff88;box-shadow:0 0 6px #00ff88}
+.led-amber{background:#ffaa00;box-shadow:0 0 6px #ffaa00}
+.led-red{background:#ff3b3b;box-shadow:0 0 6px #ff3b3b}
+.hud-btn{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.32);color:#00d4ff;border-radius:3px;padding:7px 16px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;letter-spacing:.1em;transition:all .2s}
+.hud-btn:hover{background:rgba(0,212,255,.18);box-shadow:0 0 12px rgba(0,212,255,.2)}
+.hud-btn.sm{padding:4px 10px;font-size:10px}
+.hud-input{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.18);border-radius:3px;color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:12px;padding:7px 10px;width:100%;outline:none;transition:border .2s}
+.hud-input:focus{border-color:rgba(0,212,255,.45);box-shadow:0 0 8px rgba(0,212,255,.08)}
+.hud-input::placeholder{color:rgba(0,212,255,.22)}
+select.hud-input option{background:#000d1a;color:#00d4ff}
+.arc-wrap{display:flex;flex-direction:column;align-items:center;gap:4px}
+.arc-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.45);letter-spacing:.1em;text-transform:uppercase}
+.progress-wrap{margin:8px 0}
+.progress-bar{height:6px;background:rgba(0,212,255,.07);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.alert-bar{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:3px;margin-bottom:7px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.5}
+.alert-warn{background:rgba(255,170,0,.07);border:1px solid rgba(255,170,0,.25);color:#ffaa00}
+.alert-info{background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);color:rgba(0,212,255,.8)}
+.alert-green{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);color:#00ff88}
+.alert-red{background:rgba(255,59,59,.06);border:1px solid rgba(255,59,59,.2);color:#ff3b3b}
+
+/* ── JARVIS AVATAR SIDEBAR ── */
+#jarvis-avatar-wrap{display:flex;flex-direction:column;align-items:center;padding:18px 0 10px;flex-shrink:0;position:relative;background:rgba(0,4,12,.6)}
+#avatar-container{position:relative;width:170px;height:170px;cursor:pointer}
+#avatar-svg{width:170px;height:170px;filter:drop-shadow(0 0 18px rgba(0,212,255,.5));animation:orb-float 4s ease-in-out infinite}
+.ring-svg{position:absolute;top:0;left:0;width:170px;height:170px;pointer-events:none}
+#ring-outer{animation:ring1 8s linear infinite}
+#ring-mid{animation:ring2 5s linear infinite}
+#ring-inner{animation:ring3 12s linear infinite}
+.avatar-name{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:.3em;color:#00d4ff;text-shadow:0 0 14px rgba(0,212,255,.7);margin-top:8px;text-transform:uppercase}
+.avatar-status{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.4);letter-spacing:.14em;margin-top:2px}
+.particles{position:absolute;inset:0;pointer-events:none}
+.particle{position:absolute;width:3px;height:3px;background:#00d4ff;border-radius:50%;box-shadow:0 0 4px #00d4ff}
+
+/* ── CHAT ── */
+#chat-section{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0 14px 10px}
+#chat-messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:6px 0;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.15) transparent}
+.msg{display:flex;flex-direction:column;animation:fadeIn .25s ease both}
+.msg-user{align-items:flex-end}
+.msg-jarvis{align-items:flex-start}
+.msg-bubble{max-width:88%;padding:8px 11px;font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.65;border-radius:2px}
+.msg-user .msg-bubble{background:rgba(0,212,255,.09);border:1px solid rgba(0,212,255,.22);color:#00d4ff;border-radius:8px 8px 2px 8px}
+.msg-jarvis .msg-bubble{background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.18);color:#00ff88;border-radius:8px 8px 8px 2px}
+.msg-role{font-size:8px;color:rgba(0,212,255,.28);margin-top:2px;font-family:'Share Tech Mono',monospace;letter-spacing:.1em}
+.typing{display:flex;gap:4px;align-items:center;padding:6px 10px}
+.typing-dot{width:5px;height:5px;background:#00ff88;border-radius:50%}
+
+/* ── VOICE CONTROLS ── */
+#voice-section{padding:10px 14px;border-top:1px solid rgba(0,212,255,.1);flex-shrink:0}
+#waveform{display:flex;align-items:center;justify-content:center;gap:2px;height:22px;margin-bottom:8px}
+.wave-bar{width:3px;border-radius:2px;background:rgba(0,212,255,.2);transition:all .1s}
+.wave-bar.active{background:#00d4ff;box-shadow:0 0 4px #00d4ff}
+#mic-btn{width:52px;height:52px;border-radius:50%;cursor:pointer;background:rgba(0,212,255,.07);border:2px solid rgba(0,212,255,.45);display:flex;align-items:center;justify-content:center;transition:all .25s;margin:0 auto 6px}
+#mic-btn:hover{background:rgba(0,212,255,.16);box-shadow:0 0 16px rgba(0,212,255,.25)}
+#mic-btn.listening{background:rgba(255,59,59,.12);border-color:#ff3b3b;box-shadow:0 0 24px rgba(255,59,59,.45),0 0 48px rgba(255,59,59,.15);animation:pulse .7s ease-in-out infinite}
+#mic-btn.speaking{background:rgba(0,255,136,.1);border-color:#00ff88;box-shadow:0 0 20px rgba(0,255,136,.35)}
+#mic-label{text-align:center;font-family:'Share Tech Mono',monospace;font-size:8px;color:rgba(0,212,255,.32);letter-spacing:.12em;margin-bottom:8px}
+#chat-input-row{display:flex;gap:6px}
+#chat-input{flex:1;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.18);border-radius:3px;color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:11px;padding:7px 10px;outline:none;resize:none;transition:border .2s}
+#chat-input:focus{border-color:rgba(0,212,255,.42)}
+#chat-input::placeholder{color:rgba(0,212,255,.2)}
+#send-btn{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.35);color:#00d4ff;border-radius:3px;padding:0 12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;letter-spacing:.08em;white-space:nowrap;transition:all .2s}
+#send-btn:hover{background:rgba(0,212,255,.2)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-box{background:#000d1a;border:1px solid rgba(0,212,255,.4);border-radius:5px;padding:22px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 0 40px rgba(0,212,255,.12);transform:translateY(12px);transition:transform .25s}
+.modal-overlay.open .modal-box{transform:translateY(0)}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:#00d4ff;letter-spacing:.12em;margin-bottom:14px}
+.modal-form-row{margin-bottom:10px}
+.modal-form-row label{display:block;font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.42);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-actions{display:flex;gap:8px;margin-top:14px}
+.modal-cancel{flex:1;padding:9px;background:none;border:1px solid rgba(0,212,255,.2);color:rgba(0,212,255,.5);border-radius:3px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;letter-spacing:.08em}
+.modal-save{flex:2;padding:9px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.4);color:#00d4ff;border-radius:3px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px;letter-spacing:.08em;transition:all .2s}
+.modal-save:hover{background:rgba(0,212,255,.2)}
+.product-info-card{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.14);border-radius:3px;padding:10px 12px;margin-bottom:10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.75);line-height:1.7}
+
+/* ── BOOT ── */
+#boot{position:fixed;inset:0;background:#000810;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .8s}
+#boot.done{opacity:0;pointer-events:none}
+#boot-logo{position:relative;width:140px;height:140px}
+#boot-title{font-family:'Rajdhani',sans-serif;font-size:30px;font-weight:700;letter-spacing:.3em;color:#00d4ff;text-shadow:0 0 24px rgba(0,212,255,.8)}
+#boot-status{font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.45);letter-spacing:.15em;animation:pulse 1.2s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<!-- BOOT SCREEN -->
+<div id="boot">
+  <div id="boot-logo">
+    <svg width="140" height="140" viewBox="0 0 140 140" id="boot-svg">
+      <circle cx="70" cy="70" r="60" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5" stroke-dasharray="8 4" id="br1"/>
+      <circle cx="70" cy="70" r="46" fill="none" stroke="rgba(0,255,136,.45)" stroke-width="1.5" stroke-dasharray="5 5" id="br2"/>
+      <circle cx="70" cy="70" r="32" fill="none" stroke="rgba(0,212,255,.4)" stroke-width="1.5" stroke-dasharray="3 3" id="br3"/>
+      <circle cx="70" cy="70" r="16" fill="none" stroke="rgba(0,212,255,.6)" stroke-width="2"/>
+      <circle cx="70" cy="70" r="8" fill="rgba(0,212,255,.3)" stroke="#00d4ff" stroke-width="2"/>
+      <circle cx="70" cy="70" r="4" fill="#00d4ff"/>
+    </svg>
+  </div>
+  <div id="boot-title">J.A.R.V.I.S</div>
+  <div id="boot-status">INITIALIZING SYSTEMS...</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="header">
+    <div style="display:flex;align-items:center;gap:14px">
+      <svg id="logo-svg" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.2" stroke-dasharray="4 2" style="transform-origin:18px 18px;animation:spin 6s linear infinite"/>
+        <circle cx="18" cy="18" r="10" fill="none" stroke="rgba(0,255,136,.4)" stroke-width="1" stroke-dasharray="3 3" style="transform-origin:18px 18px;animation:spinr 4s linear infinite"/>
+        <circle cx="18" cy="18" r="5" fill="rgba(0,212,255,.2)" stroke="#00d4ff" stroke-width="1.5"/>
+        <circle cx="18" cy="18" r="2.5" fill="#00d4ff"/>
+      </svg>
+      <div class="header-title">
+        <h1>J.A.R.V.I.S</h1>
+        <span>Golf Course AI · v3.0</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div class="header-meta">
+        <div>ISLAND COURSE · FAIRFIELD TX</div>
+        <div id="live-datetime" style="color:rgba(0,212,255,.65)">LOADING DATE...</div>
+      </div>
+      <div class="status-dot"></div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main id="main">
+    <nav id="nav">
+      <button class="nav-tab active" onclick="showScreen('system')">SYSTEM</button>
+      <button class="nav-tab" onclick="showScreen('spray')">SPRAY LOG</button>
+      <button class="nav-tab" onclick="showScreen('pgr')">PGR / GDD</button>
+      <button class="nav-tab" onclick="showScreen('clippings')">CLIPPINGS</button>
+      <button class="nav-tab" onclick="showScreen('equipment')">EQUIPMENT</button>
+      <button class="nav-tab" onclick="showScreen('life')">LIFE</button>
+      <button class="nav-tab" onclick="showScreen('memory')">MEMORY</button>
+      <button class="nav-tab" onclick="showScreen('setup')" style="color:rgba(255,170,0,.55)">⚙ SETUP</button>
+    </nav>
+    <div id="screen-wrap">
+
+      <!-- SYSTEM SCREEN -->
+      <div class="screen active" id="screen-system">
+        <div class="hud-grid grid-2" style="margin-bottom:12px">
+          <div class="hud-panel glow">
+            <div class="panel-label">Course Status</div>
+            <div style="display:flex;justify-content:space-around;margin:8px 0 14px">
+              <div class="arc-wrap"><svg width="82" height="82" id="arc-stimp"></svg><div class="arc-lbl">STIMP</div></div>
+              <div class="arc-wrap"><svg width="82" height="82" id="arc-gdd"></svg><div class="arc-lbl">GDD %</div></div>
+              <div class="arc-wrap"><svg width="82" height="82" id="arc-acres"></svg><div class="arc-lbl">ACRES</div></div>
+            </div>
+            <div class="data-row"><span class="dr-lbl">HOC</span><span class="dr-val">.100"</span></div>
+            <div class="data-row"><span class="dr-lbl">GREENS</span><span class="dr-val">Tif-Eagle</span></div>
+            <div class="data-row"><span class="dr-lbl">FAIRWAYS</span><span class="dr-val">Stadium Zoysia</span></div>
+            <div class="data-row"><span class="dr-lbl">NEXT EVENT</span><span class="dr-val" style="color:#ffaa00">Member-Member Jun 12-13</span></div>
+          </div>
+          <div class="hud-panel">
+            <div class="panel-label">System Alerts</div>
+            <div class="alert-bar alert-amber">◆ Daconil Action + Appear II overdue — spray by Fri AM before 75% rain risk</div>
+            <div class="alert-bar alert-red">◆ Spray unit PM overdue — schedule service immediately</div>
+            <div class="alert-bar alert-amber">◆ Member-Member in 8 days — stimp gap +2 ft, double mow + roll daily</div>
+            <div class="alert-bar alert-info" id="gdd-alert">◆ PGR: calculating GDD...</div>
+            <div class="alert-bar alert-green">◆ PGR peak suppression Jun 9–13 covers tournament window</div>
+          </div>
+        </div>
+
+        <!-- DOCUMENT UPLOAD -->
+        <div class="hud-panel" style="margin-bottom:12px">
+          <div class="panel-label">Document Analysis — Upload Files for JARVIS</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+            <button class="hud-btn" onclick="document.getElementById('doc-upload').click()">⬆ UPLOAD DOCUMENT</button>
+            <button class="hud-btn" onclick="document.getElementById('doc-upload-multi').click()" style="font-size:11px">⬆ UPLOAD MULTIPLE</button>
+            <input type="file" id="doc-upload" accept="*/*" style="display:none" onchange="handleDocUpload(event)">
+            <input type="file" id="doc-upload-multi" accept="*/*" multiple style="display:none" onchange="handleDocUploadMulti(event)">
+            <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.35)">All file types — PDF, Excel, Word, images, text, CSV, JSON, calendars</span>
+          </div>
+          <div id="doc-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+          <div id="doc-analysis" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.7);line-height:1.7;padding:10px 12px;background:rgba(0,212,255,.03);border:1px solid rgba(0,212,255,.1);border-radius:3px;max-height:120px;overflow-y:auto;display:none"></div>
+          <div id="doc-analyzing" style="display:none;font-family:'Share Tech Mono',monospace;font-size:11px;color:#ffaa00;animation:pulse 1s infinite">◈ Analyzing document with JARVIS...</div>
+        </div>
+
+        <div class="hud-grid grid-2">
+          <div class="hud-panel" id="weather-panel">
+            <div class="panel-label" id="weather-location-name">Live Weather — Fairfield TX <span id="weather-updated" style="color:rgba(0,212,255,.3);font-size:8px"></span></div>
+            <div id="weather-current" style="margin-bottom:8px;padding:8px 10px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);border-radius:3px">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.35);animation:pulse 1s infinite">◈ FETCHING LIVE DATA...</div>
+            </div>
+            <div id="weather-forecast"></div>
+            <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.3)">Open-Meteo · Free · No key needed · Auto-refresh 30min</span>
+              <button class="hud-btn" style="padding:3px 8px;font-size:9px" onclick="fetchLiveWeather()">↻ REFRESH</button>
+            </div>
+          </div>
+          <div class="hud-panel">
+            <div class="panel-label">Stimp Projection</div>
+            <div style="margin:4px 0">
+              <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:11px;margin-bottom:4px"><span style="color:rgba(0,212,255,.4)">TODAY</span><span style="color:#ffaa00">10.0</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:71%;background:#ffaa00"></div></div>
+            </div>
+            <div style="margin:8px 0">
+              <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:11px;margin-bottom:4px"><span style="color:rgba(0,212,255,.4)">JUN 8</span><span style="color:#ffaa00">10.5</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:75%;background:#ffaa00"></div></div>
+            </div>
+            <div style="margin:8px 0">
+              <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:11px;margin-bottom:4px"><span style="color:rgba(0,212,255,.4)">JUN 10</span><span style="color:#ff6600">11.5</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:82%;background:#ff6600"></div></div>
+            </div>
+            <div style="margin:8px 0">
+              <div style="display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:11px;margin-bottom:4px"><span style="color:rgba(0,212,255,.4)">JUN 12 EVENT</span><span style="color:#00ff88">12.0+</span></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:86%;background:#00ff88"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SPRAY SCREEN -->
+      <div class="screen" id="screen-spray">
+        <div style="margin-bottom:12px;display:flex;gap:10px">
+          <button class="hud-btn" onclick="openSprayModal()">+ LOG APPLICATION</button>
+        </div>
+        <div class="hud-panel glow">
+          <div class="panel-label">Application Log — Island Course</div>
+          <div id="spray-list"></div>
+        </div>
+      </div>
+
+      <!-- PGR SCREEN -->
+      <div class="screen" id="screen-pgr">
+        <div class="hud-grid grid-2">
+          <div class="hud-panel glow">
+            <div class="panel-label">PGR Program — GDD Model (Base 50°F)</div>
+            <div style="margin-bottom:12px">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.42);letter-spacing:.1em;margin-bottom:5px">GDD ACCUMULATION SINCE LAST APP</div>
+              <div class="progress-bar" style="height:10px;margin-bottom:5px"><div class="progress-fill" id="gdd-bar" style="background:#00d4ff"></div></div>
+              <div id="gdd-text" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:#00d4ff"></div>
+            </div>
+            <div class="data-row"><span class="dr-lbl">LAST APP</span><span class="dr-val">Jun 3, 2026</span></div>
+            <div class="data-row"><span class="dr-lbl">PRIMO MAXX</span><span class="dr-val">14 oz/A</span></div>
+            <div class="data-row"><span class="dr-lbl">EZ ANUEW</span><span class="dr-val">26 oz/A</span></div>
+            <div class="data-row"><span class="dr-lbl">TOTAL PRIMO</span><span class="dr-val" id="primo-total"></span></div>
+            <div class="data-row"><span class="dr-lbl">TOTAL ANUEW</span><span class="dr-val" id="anuew-total"></span></div>
+            <div class="data-row"><span class="dr-lbl">EST. RE-APP</span><span class="dr-val" id="reapp-date" style="color:#00ff88"></span></div>
+            <div class="alert-bar alert-red" style="margin-top:10px">⚠ Do NOT re-apply before GDD threshold (200). Over-suppression risk on Tif-Eagle in June heat.</div>
+          </div>
+          <div class="hud-panel">
+            <div class="panel-label">Daily GDD Log</div>
+            <div id="gdd-log"></div>
+            <div style="margin-top:10px;font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.38);line-height:1.7" id="gdd-summary"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIPPINGS SCREEN -->
+      <div class="screen" id="screen-clippings">
+        <div class="hud-panel glow" style="margin-bottom:12px">
+          <div class="panel-label">Log Clipping Yield</div>
+          <div class="modal-grid" style="margin-bottom:10px">
+            <div class="modal-form-row"><label>Date</label><input class="hud-input" type="date" id="clip-date" value="2026-06-04"></div>
+            <div class="modal-form-row"><label>Condition</label><input class="hud-input" placeholder="wet, dry, wet and sand..." id="clip-cond"></div>
+            <div class="modal-form-row"><label>Yield — lbs</label><input class="hud-input" type="number" placeholder="9" id="clip-lbs"></div>
+            <div class="modal-form-row"><label>Yield — oz</label><input class="hud-input" type="number" placeholder="4" id="clip-oz"></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <label style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.5);display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="clip-pgr"> PGR active</label>
+            <label style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.5);display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="clip-double"> Double mow</label>
+            <button class="hud-btn" onclick="saveClipping()">SAVE</button>
+          </div>
+        </div>
+        <div class="hud-panel glow">
+          <div class="panel-label">Yield History</div>
+          <div id="clip-list"></div>
+          <div class="alert-bar alert-info" style="margin-top:12px">ANALYSIS: Jun 4 surge (9lb 4oz) is post-verticut rebound — NOT PGR failure. Expect yield drop Jun 6–7 as Primo + Anuew activates. Flag if still above 8lb on Jun 8.</div>
+        </div>
+      </div>
+
+      <!-- EQUIPMENT SCREEN -->
+      <div class="screen" id="screen-equipment">
+        <div class="hud-panel glow">
+          <div class="panel-label">Equipment PM Status</div>
+          <div id="equip-list"></div>
+        </div>
+      </div>
+
+      <!-- MEMORY SCREEN -->
+      <div class="screen" id="screen-memory">
+        <div class="hud-panel glow">
+          <div class="panel-label">Memory Bank — Stored Field Notes</div>
+          <div id="memory-list"><div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:rgba(0,212,255,.28);padding:20px;text-align:center;line-height:2">No field notes stored yet, Sir.<br><span style="font-size:10px">Tell JARVIS anything — sprays, yields, observations — and it will appear here.</span></div></div>
+        </div>
+      </div>
+
+      <!-- LIFE SCREEN -->
+      <div class="screen" id="screen-life">
+        <div class="hud-grid grid-2" style="margin-bottom:12px">
+          <div class="hud-panel glow">
+            <div class="panel-label">Personal Notes &amp; Reminders</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <input class="hud-input" id="life-note-input" placeholder="Add a note, reminder, or task..." style="flex:1">
+              <button class="hud-btn" onclick="addLifeNote()">ADD</button>
+            </div>
+            <div id="life-notes-list">
+              <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.28);padding:10px 0">No personal notes yet. Tell JARVIS or type here.</div>
+            </div>
+          </div>
+          <div class="hud-panel">
+            <div class="panel-label">Quick Ask JARVIS — Life Queries</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="hud-btn" style="text-align:left;font-size:11px" onclick="lifeQuery('What is the weather forecast for this week and how does it affect my plans?')">🌤 This week's weather + impact</button>
+              <button class="hud-btn" style="text-align:left;font-size:11px" onclick="lifeQuery('What are the latest news headlines today?')">📰 Latest news headlines</button>
+              <button class="hud-btn" style="text-align:left;font-size:11px" onclick="lifeQuery('Give me a motivational thought and a productivity tip for today.')">⚡ Daily motivation + tip</button>
+              <button class="hud-btn" style="text-align:left;font-size:11px" onclick="lifeQuery('Summarize my current golf course status and what I need to do today.')">⛳ Today\\'s course briefing</button>
+              <button class="hud-btn" style="text-align:left;font-size:11px" onclick="lifeQuery('What are some good restaurants or things to do near Fairfield Texas?')">📍 Local area info</button>
+              <button class="hud-btn" style="text-align:left;font-size:11px" onclick="lifeQuery('Search the internet for the latest turf management research and tell me anything relevant.')">🔬 Latest turf research</button>
+            </div>
+          </div>
+        </div>
+        <div class="hud-panel">
+          <div class="panel-label">JARVIS Search — Ask Anything</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input class="hud-input" id="life-search-input" placeholder="Ask JARVIS anything — news, sports, recipes, advice, calculations, research..." style="flex:1"
+              onkeydown="if(event.key==='Enter'){lifeQuery(document.getElementById('life-search-input').value);document.getElementById('life-search-input').value='';}">
+            <button class="hud-btn" onclick="lifeQuery(document.getElementById('life-search-input').value);document.getElementById('life-search-input').value=''">SEARCH</button>
+          </div>
+          <div id="life-result" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.75);line-height:1.75;padding:10px 12px;background:rgba(0,212,255,.03);border:1px solid rgba(0,212,255,.1);border-radius:3px;max-height:200px;overflow-y:auto;display:none"></div>
+          <div id="life-searching" style="display:none;font-family:'Share Tech Mono',monospace;font-size:11px;color:#ffaa00;animation:pulse 1s infinite;padding:8px 0">◈ JARVIS searching the internet...</div>
+        </div>
+      </div>
+
+      <!-- SETUP SCREEN -->
+      <div class="screen" id="screen-setup">
+        <div class="hud-grid grid-2" style="margin-bottom:12px">
+          <div class="hud-panel glow">
+            <div class="panel-label">🔑 API Key Configuration</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.7);line-height:2;margin-bottom:10px">
+              Your Anthropic API key is stored securely in <span style="color:#00ff88">Netlify Environment Variables</span> — never in the browser. Set it once in your Netlify dashboard and JARVIS will always have access.
+            </div>
+            <div style="background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.2);border-radius:3px;padding:12px;font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.75);line-height:2.2">
+              <div style="color:#00ff88;margin-bottom:6px;font-size:12px">HOW TO SET YOUR API KEY IN NETLIFY:</div>
+              1. Go to <span style="color:#00d4ff">app.netlify.com</span> → Your site<br>
+              2. Site Configuration → Environment Variables<br>
+              3. Click "Add a variable"<br>
+              4. Key: <span style="color:#00d4ff">ANTHROPIC_API_KEY</span><br>
+              5. Value: your key from <span style="color:#00d4ff">console.anthropic.com</span><br>
+              6. Click Save → Trigger a redeploy<br><br>
+              <span style="color:rgba(0,212,255,.45)">Get your key: console.anthropic.com → API Keys → Create Key<br>
+              Cost: ~$0.003 per message</span>
+            </div>
+            <div id="api-key-status" style="font-family:'Share Tech Mono',monospace;font-size:10px;margin-top:10px;color:#00ff88">
+              ✓ Running on Netlify — API key is server-side and secure
+            </div>
+          </div>
+          <div class="hud-panel">
+            <div class="panel-label">✅ Live Features Status</div>
+            <div class="data-row"><span class="dr-lbl">Live Weather</span><span class="hud-badge badge-green">ACTIVE — Open-Meteo (free)</span></div>
+            <div class="data-row"><span class="dr-lbl">Internet Search</span><span id="status-search" class="hud-badge badge-green">ACTIVE — via Netlify proxy</span></div>
+            <div class="data-row"><span class="dr-lbl">AI Brain (Claude)</span><span id="status-claude" class="hud-badge badge-green">ACTIVE — via Netlify proxy</span></div>
+            <div class="data-row"><span class="dr-lbl">API Key</span><span class="hud-badge badge-green">SECURE — Netlify env vars</span></div>
+            <div class="data-row"><span class="dr-lbl">Voice Input</span><span class="hud-badge badge-green">ACTIVE — Chrome/Edge</span></div>
+            <div class="data-row"><span class="dr-lbl">Voice Output</span><span class="hud-badge badge-green">ACTIVE — Browser TTS</span></div>
+            <div class="data-row"><span class="dr-lbl">Document Upload</span><span class="hud-badge badge-green">ACTIVE — All file types</span></div>
+            <div class="data-row"><span class="dr-lbl">GDD Model</span><span class="hud-badge badge-green">ACTIVE — Live weather</span></div>
+          </div>
+        </div>
+
+        <div class="hud-grid grid-2">
+          <div class="hud-panel">
+            <div class="panel-label">🌐 How to Deploy on Netlify</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.7);line-height:2">
+              <span style="color:#00ff88">STEP 1 — Upload to Netlify:</span><br>
+              Go to app.netlify.com → Add new site → Deploy manually<br>
+              Drag the entire <span style="color:#00d4ff">jarvis-netlify</span> folder onto the deploy area<br>
+              (the folder contains: index.html, netlify.toml, netlify/functions/claude.js)<br><br>
+              <span style="color:#00ff88">STEP 2 — Set your API key:</span><br>
+              Site Configuration → Environment Variables → Add variable<br>
+              Name: <span style="color:#00d4ff">ANTHROPIC_API_KEY</span> · Value: your key<br><br>
+              <span style="color:#00ff88">STEP 3 — Redeploy:</span><br>
+              Deploys → Trigger deploy → Deploy site<br>
+              JARVIS is now live at your-site.netlify.app ✓<br><br>
+              <span style="color:rgba(0,212,255,.4)">Voice works in Chrome and Edge. Access from phone, tablet, anywhere.</span>
+            </div>
+          </div>
+          <div class="hud-panel">
+            <div class="panel-label">🎙 Voice Tips &amp; What to Say</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.65);line-height:2">
+              <span style="color:#00d4ff">LOG SPRAYS:</span> "I applied Daconil Action on greens today"<br>
+              <span style="color:#00d4ff">LOG YIELDS:</span> "Clipping yield was 5 pounds 3 ounces"<br>
+              <span style="color:#00d4ff">ASK WEATHER:</span> "What's the weather this week?"<br>
+              <span style="color:#00d4ff">SEARCH WEB:</span> "Look up latest news on dollar spot"<br>
+              <span style="color:#00d4ff">PERSONAL:</span> "What's a good recipe for dinner tonight?"<br>
+              <span style="color:#00d4ff">RESEARCH:</span> "Find me turf research on Tif-Eagle heat stress"<br>
+              <span style="color:#00d4ff">NOTES:</span> "Remember that we ordered new reels today"<br>
+              <span style="color:#00d4ff">MATH:</span> "Calculate tank mix for 4.5 acres at 6 oz per acre"<br><br>
+              <span style="color:rgba(0,212,255,.4)">Voice works in Chrome &amp; Edge desktop. Press the mic button or click JARVIS's avatar.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-panel" style="margin-top:12px">
+          <div class="panel-label">📡 Live Data Sources</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-family:'Share Tech Mono',monospace;font-size:11px">
+            <div style="padding:10px;background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.15);border-radius:3px">
+              <div style="color:#00ff88;margin-bottom:4px">🌡 WEATHER</div>
+              <div style="color:rgba(0,212,255,.6)">Open-Meteo API — 100% free, no key needed. Real-time temp, humidity, wind, precipitation, ET, 7-day forecast. Auto-refreshes every 30 min.</div>
+            </div>
+            <div style="padding:10px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:3px">
+              <div style="color:#00d4ff;margin-bottom:4px">🔍 WEB SEARCH</div>
+              <div style="color:rgba(0,212,255,.6)">Claude's built-in web search. Searches the live internet for news, product labels, research, scores, prices. Requires Anthropic API key.</div>
+            </div>
+            <div style="padding:10px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:3px">
+              <div style="color:#00d4ff;margin-bottom:4px">🧠 AI BRAIN</div>
+              <div style="color:rgba(0,212,255,.6)">Claude Sonnet 4 by Anthropic. Understands context, stores data intelligently, reads documents, provides agronomic + life advice. Requires API key.</div>
+            </div>
+            <div style="padding:10px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:3px">
+              <div style="color:#00d4ff;margin-bottom:4px">📊 GDD MODEL</div>
+              <div style="color:rgba(0,212,255,.6)">Calculated live from real weather data. Base 50°F Tif-Eagle standard. 200 GDD threshold for Primo+Anuew re-application. Updates with each weather refresh.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /screen-wrap -->
+  </main>
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <!-- JARVIS AVATAR -->
+    <div id="jarvis-avatar-wrap">
+      <div id="avatar-container" onclick="toggleSpeech()" title="Click JARVIS to speak">
+
+        <!-- Orbiting rings -->
+        <svg class="ring-svg" viewBox="0 0 170 170">
+          <!-- outer ring -->
+          <g id="ring-outer" style="transform-origin:85px 85px">
+            <circle cx="85" cy="85" r="78" fill="none" stroke="rgba(0,212,255,.35)" stroke-width="1" stroke-dasharray="6 3"/>
+            <circle cx="85" cy="7" r="4" fill="#00d4ff" opacity=".9"/>
+            <circle cx="85" cy="163" r="3" fill="rgba(0,212,255,.6)"/>
+          </g>
+          <!-- mid ring tilted -->
+          <g id="ring-mid" style="transform-origin:85px 85px">
+            <ellipse cx="85" cy="85" rx="65" ry="25" fill="none" stroke="rgba(0,255,136,.3)" stroke-width="1" stroke-dasharray="4 4" transform="rotate(-30,85,85)"/>
+            <ellipse cx="85" cy="85" rx="65" ry="25" fill="none" stroke="rgba(0,212,255,.2)" stroke-width=".8" stroke-dasharray="2 6" transform="rotate(60,85,85)"/>
+          </g>
+          <!-- inner ring -->
+          <g id="ring-inner" style="transform-origin:85px 85px">
+            <circle cx="85" cy="85" r="52" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1.5" stroke-dasharray="3 5"/>
+          </g>
+        </svg>
+
+        <!-- JARVIS face SVG -->
+        <svg id="avatar-svg" viewBox="0 0 160 160">
+          <defs>
+            <radialGradient id="orbGrad" cx="50%" cy="45%" r="55%">
+              <stop offset="0%" stop-color="rgba(0,212,255,.18)"/>
+              <stop offset="60%" stop-color="rgba(0,100,180,.12)"/>
+              <stop offset="100%" stop-color="rgba(0,30,80,.08)"/>
+            </radialGradient>
+            <radialGradient id="faceGrad" cx="50%" cy="42%" r="50%">
+              <stop offset="0%" stop-color="rgba(0,212,255,.15)"/>
+              <stop offset="100%" stop-color="rgba(0,20,60,.05)"/>
+            </radialGradient>
+            <filter id="glow-filter">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="strong-glow">
+              <feGaussianBlur stdDeviation="5" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <!-- hexagon clip -->
+            <clipPath id="hex-clip">
+              <polygon points="80,12 138,46 138,114 80,148 22,114 22,46"/>
+            </clipPath>
+          </defs>
+
+          <!-- Outer glow orb -->
+          <circle cx="80" cy="80" r="74" fill="none" stroke="rgba(0,212,255,.25)" stroke-width="2" filter="url(#glow-filter)"/>
+          <circle cx="80" cy="80" r="68" fill="url(#orbGrad)" stroke="rgba(0,212,255,.35)" stroke-width="1.5"/>
+
+          <!-- Energy core rings -->
+          <circle cx="80" cy="80" r="58" fill="none" stroke="rgba(0,212,255,.2)" stroke-width="1" stroke-dasharray="40 6" style="transform-origin:80px 80px;animation:spin 12s linear infinite"/>
+          <circle cx="80" cy="80" r="50" fill="none" stroke="rgba(0,255,136,.15)" stroke-width="1" stroke-dasharray="20 8" style="transform-origin:80px 80px;animation:spinr 8s linear infinite"/>
+
+          <!-- Face silhouette - stylized angular JARVIS face -->
+          <!-- Head shape -->
+          <path d="M 80 22 L 112 36 L 118 60 L 112 82 L 100 95 L 80 102 L 60 95 L 48 82 L 42 60 L 48 36 Z"
+                fill="rgba(0,15,40,.85)" stroke="rgba(0,212,255,.5)" stroke-width="1.5" filter="url(#glow-filter)"/>
+
+          <!-- Forehead panel -->
+          <path d="M 80 24 L 108 37 L 100 45 L 80 42 L 60 45 L 52 37 Z"
+                fill="rgba(0,212,255,.08)" stroke="rgba(0,212,255,.3)" stroke-width=".8"/>
+
+          <!-- Eye sockets - angular -->
+          <path d="M 57 54 L 70 51 L 74 57 L 70 63 L 57 63 L 53 58 Z"
+                fill="rgba(0,212,255,.06)" stroke="rgba(0,212,255,.4)" stroke-width="1"/>
+          <path d="M 103 54 L 90 51 L 86 57 L 90 63 L 103 63 L 107 58 Z"
+                fill="rgba(0,212,255,.06)" stroke="rgba(0,212,255,.4)" stroke-width="1"/>
+
+          <!-- Eyes — glowing -->
+          <ellipse cx="63" cy="57" rx="6" ry="4" fill="rgba(0,212,255,.15)" filter="url(#glow-filter)"/>
+          <ellipse cx="97" cy="57" rx="6" ry="4" fill="rgba(0,212,255,.15)" filter="url(#glow-filter)"/>
+          <ellipse id="eye-left" cx="63" cy="57" rx="4" ry="2.5" fill="#00d4ff" filter="url(#strong-glow)" style="animation:eye-glow 2.5s ease-in-out infinite"/>
+          <ellipse id="eye-right" cx="97" cy="57" rx="4" ry="2.5" fill="#00d4ff" filter="url(#strong-glow)" style="animation:eye-glow 2.5s ease-in-out infinite 0.3s"/>
+
+          <!-- Brow lines -->
+          <line x1="54" y1="50" x2="74" y2="48" stroke="rgba(0,212,255,.6)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="106" y1="50" x2="86" y2="48" stroke="rgba(0,212,255,.6)" stroke-width="1.5" stroke-linecap="round"/>
+
+          <!-- Nose bridge -->
+          <path d="M 78 62 L 76 72 L 80 74 L 84 72 L 82 62" fill="none" stroke="rgba(0,212,255,.35)" stroke-width="1"/>
+
+          <!-- Cheekbone panels -->
+          <path d="M 50 65 L 56 63 L 58 72 L 52 76" fill="rgba(0,212,255,.05)" stroke="rgba(0,212,255,.25)" stroke-width=".8"/>
+          <path d="M 110 65 L 104 63 L 102 72 L 108 76" fill="rgba(0,212,255,.05)" stroke="rgba(0,212,255,.25)" stroke-width=".8"/>
+
+          <!-- Mouth - animated when talking -->
+          <path id="mouth" d="M 65 82 Q 80 86 95 82" fill="none" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" filter="url(#glow-filter)"/>
+
+          <!-- Chin panel -->
+          <path d="M 62 88 L 80 96 L 98 88 L 96 94 L 80 100 L 64 94 Z"
+                fill="rgba(0,212,255,.06)" stroke="rgba(0,212,255,.22)" stroke-width=".8"/>
+
+          <!-- HUD data lines on face -->
+          <line x1="48" y1="56" x2="42" y2="54" stroke="rgba(0,212,255,.4)" stroke-width=".8"/>
+          <line x1="42" y1="54" x2="36" y2="58" stroke="rgba(0,212,255,.3)" stroke-width=".8"/>
+          <circle cx="36" cy="58" r="1.5" fill="rgba(0,212,255,.6)"/>
+          <line x1="112" y1="56" x2="118" y2="54" stroke="rgba(0,212,255,.4)" stroke-width=".8"/>
+          <line x1="118" y1="54" x2="124" y2="58" stroke="rgba(0,212,255,.3)" stroke-width=".8"/>
+          <circle cx="124" cy="58" r="1.5" fill="rgba(0,212,255,.6)"/>
+
+          <!-- Arc reactor chest (below face) -->
+          <circle cx="80" cy="116" r="10" fill="none" stroke="rgba(0,212,255,.4)" stroke-width="1.5"/>
+          <circle cx="80" cy="116" r="7" fill="rgba(0,212,255,.1)" stroke="rgba(0,212,255,.6)" stroke-width="1"/>
+          <circle cx="80" cy="116" r="4" fill="rgba(0,212,255,.3)" stroke="#00d4ff" stroke-width="1" style="animation:glow-pulse 2s ease-in-out infinite"/>
+          <circle cx="80" cy="116" r="2" fill="#00d4ff" filter="url(#strong-glow)"/>
+          <!-- reactor spokes -->
+          <line x1="80" y1="106" x2="80" y2="109" stroke="rgba(0,212,255,.5)" stroke-width="1"/>
+          <line x1="80" y1="123" x2="80" y2="126" stroke="rgba(0,212,255,.5)" stroke-width="1"/>
+          <line x1="70" y1="116" x2="73" y2="116" stroke="rgba(0,212,255,.5)" stroke-width="1"/>
+          <line x1="87" y1="116" x2="90" y2="116" stroke="rgba(0,212,255,.5)" stroke-width="1"/>
+
+          <!-- Energy particles emanating -->
+          <circle cx="80" cy="80" r="1.5" fill="#00ff88" opacity=".7" style="animation:pulse 1.8s ease-in-out infinite"/>
+          <circle cx="55" cy="45" r="1" fill="rgba(0,212,255,.6)" style="animation:pulse 2.3s ease-in-out infinite .4s"/>
+          <circle cx="105" cy="45" r="1" fill="rgba(0,212,255,.6)" style="animation:pulse 2.1s ease-in-out infinite .8s"/>
+          <circle cx="42" cy="80" r="1" fill="rgba(0,255,136,.5)" style="animation:pulse 1.9s ease-in-out infinite .2s"/>
+          <circle cx="118" cy="80" r="1" fill="rgba(0,255,136,.5)" style="animation:pulse 2.4s ease-in-out infinite .6s"/>
+        </svg>
+
+        <!-- Floating energy particles -->
+        <div class="particles" id="particles"></div>
+      </div>
+
+      <div class="avatar-name">J.A.R.V.I.S</div>
+      <div class="avatar-status" id="avatar-status-text">SYSTEMS NOMINAL</div>
+    </div>
+
+    <!-- CHAT -->
+    <div id="chat-section">
+      <div id="chat-messages"></div>
+
+      <div id="voice-section">
+        <div id="waveform">
+          <div class="wave-bar" style="height:4px"></div>
+          <div class="wave-bar" style="height:7px"></div>
+          <div class="wave-bar" style="height:12px"></div>
+          <div class="wave-bar" style="height:18px"></div>
+          <div class="wave-bar" style="height:22px"></div>
+          <div class="wave-bar" style="height:16px"></div>
+          <div class="wave-bar" style="height:20px"></div>
+          <div class="wave-bar" style="height:14px"></div>
+          <div class="wave-bar" style="height:10px"></div>
+          <div class="wave-bar" style="height:6px"></div>
+        </div>
+
+        <button id="mic-btn" onclick="toggleMic()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#00d4ff">
+            <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+            <line x1="8" y1="22" x2="16" y2="22"/>
+          </svg>
+        </button>
+        <div id="mic-label">PRESS TO SPEAK</div>
+
+        <div id="chat-input-row">
+          <textarea id="chat-input" rows="2" placeholder="Type or press mic..."></textarea>
+          <button id="send-btn" onclick="sendMessage()">SEND</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- SPRAY MODAL -->
+<div class="modal-overlay" id="spray-modal">
+  <div class="modal-box">
+    <div class="modal-title">LOG SPRAY APPLICATION</div>
+    <div class="modal-grid">
+      <div class="modal-form-row"><label>Date</label><input class="hud-input" type="date" id="sp-date"></div>
+      <div class="modal-form-row"><label>Area</label>
+        <select class="hud-input" id="sp-area">
+          <option>Greens</option><option>Tees</option><option>Fairways</option><option>Collars</option><option>Rough</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-form-row"><label>Product name</label><input class="hud-input" placeholder="e.g. Daconil Action, Primo Maxx..." id="sp-product"></div>
+    <div class="modal-form-row">
+      <label>Describe product (voice or type — JARVIS will search the label)</label>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <textarea class="hud-input" rows="2" placeholder="e.g. blue jug chlorothalonil, brown Syngenta bottle, PGR for greens..." id="sp-details" style="flex:1;resize:none"></textarea>
+        <button onclick="sprayDialogMic()" id="spray-mic-btn" style="background:none;border:2px solid rgba(0,212,255,.4);width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-grid">
+      <div class="modal-form-row"><label>Rate</label><input class="hud-input" placeholder="oz/A or fl oz" id="sp-rate"></div>
+      <div class="modal-form-row"><label>Acres</label><input class="hud-input" type="number" step="0.1" placeholder="4.5" id="sp-acres" value="4.5"></div>
+      <div class="modal-form-row"><label>Wind (mph)</label><input class="hud-input" placeholder="5 mph" id="sp-wind"></div>
+      <div class="modal-form-row"><label>Temp °F</label><input class="hud-input" placeholder="78" id="sp-temp"></div>
+    </div>
+    <div class="modal-form-row"><label>Notes / REI</label><input class="hud-input" placeholder="REI, conditions, tank partners..." id="sp-notes"></div>
+    <div id="product-info-card" class="product-info-card" style="display:none"></div>
+    <div id="product-loading" style="display:none;font-family:'Share Tech Mono',monospace;font-size:11px;color:#ffaa00;animation:pulse 1s infinite;margin-bottom:10px">◈ Searching product label database...</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal('spray-modal')">CANCEL</button>
+      <button class="modal-save" onclick="saveSpray()">SAVE + LOOKUP PRODUCT</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// JARVIS GOLF — Pure HTML/JS
+// No bundler, no freezing, runs directly in browser
+// ════════════════════════════════════════════════════
+
+const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+
+// ── Memory store ──
+const MEM = {
+  facts: [],
+  documents: [],
+  personal: [],        // personal life notes, reminders, tasks
+  reminders: [],       // time-based reminders
+  userLocation: { lat: 31.7382, lon: -96.1697, name: "Fairfield, TX" },
+  sprayLogs: [
+    { id:1, date:"2026-06-03", area:"Greens", product:"Daconil Action + Appear II", status:"missed", productInfo:null },
+    { id:2, date:"2026-06-02", area:"Greens", product:"Soil flush", status:"done", productInfo:null },
+  ],
+  pgrApp: { date:"2026-06-03", primo:14, anuew:26, acres:4.5 },
+  clippings: [
+    { id:1, date:"2026-06-04", lbs:9, oz:4, condition:"wet and sand", pgrActive:true, doubleMow:false },
+    { id:2, date:"2026-06-03", lbs:6, oz:12, condition:"wet and sand", pgrActive:false, doubleMow:false },
+    { id:3, date:"2026-06-02", lbs:2, oz:15, condition:"wet", pgrActive:false, doubleMow:false },
+  ],
+  equipment: [
+    { id:1, name:"Triplex greens mower", pmType:"Reel grind + bedknife", nextDue:"2026-06-15", status:"soon" },
+    { id:2, name:"Walk greens mower", pmType:"Reel grind + bedknife", nextDue:"2026-06-20", status:"ok" },
+    { id:3, name:"Spray unit", pmType:"Nozzle check + calibration", nextDue:"2026-06-10", status:"overdue" },
+  ],
+  weather: [
+    { date:"2026-06-01", high:88, low:66 },
+    { date:"2026-06-02", high:85, low:64 },
+    { date:"2026-06-03", high:83, low:63 },
+    { date:"2026-06-04", high:82, low:62 },
+  ],
+  getGDD() {
+    return this.weather.reduce((s,d) => s + Math.max(0, ((d.high+d.low)/2) - 50), 0);
+  },
+  getReappDate() {
+    let gdd = this.getGDD(), d = new Date(this.pgrApp.date);
+    while (gdd < 200) { d.setDate(d.getDate()+1); gdd += 20; }
+    return d.toISOString().split("T")[0];
+  },
+  getContext() {
+    const gdd = Math.round(this.getGDD());
+    return `COURSE: Island Course, Fairfield TX, transition zone. Tif-Eagle greens at .100" HOC, stimp ~10 (target 12+). Stadium Zoysia fairways. Member-Member tournament Jun 12-13.
+SPRAYS: ${this.sprayLogs.map(l=>`${l.date} ${l.product} on ${l.area} (${l.status})`).join("; ")}.
+PGR: Last app ${this.pgrApp.date}, Primo ${this.pgrApp.primo}oz + Anuew ${this.pgrApp.anuew}oz per acre. GDD accumulated: ${gdd}/200. Est. re-app: ${this.getReappDate()}.
+CLIPPINGS: ${this.clippings.map(c=>`${c.date}: ${c.lbs}lb ${c.oz}oz (${c.condition})`).join("; ")}.
+EQUIPMENT: ${this.equipment.map(e=>`${e.name} ${e.status}`).join("; ")}.
+DOCUMENTS: ${this.documents.map(d=>d.name).join(", ")||"none"}.
+PERSONAL NOTES: ${this.personal.slice(-8).map(p=>p.text).join("; ")||"none"}.
+REMINDERS: ${this.reminders.slice(-5).map(r=>r.text).join("; ")||"none"}.
+USER LOCATION: ${this.userLocation.name} (${this.userLocation.lat.toFixed(4)}, ${this.userLocation.lon.toFixed(4)}).
+FIELD NOTES: ${this.facts.slice(-8).map(f=>f.text).join("; ")||"none"}.`;
+  }
+};
+
+// ════════════════════════════════════════════════
+// LIVE WEATHER — Open-Meteo (free, no API key)
+// Auto-detects location via browser geolocation
+// Falls back to Fairfield TX if denied
+// ════════════════════════════════════════════════
+let WEATHER_LAT = 31.7382, WEATHER_LON = -96.1697, WEATHER_LOCATION_NAME = "Fairfield, TX";
+let liveWeatherData = null;
+
+// Try to get user's real location
+function detectLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        WEATHER_LAT = pos.coords.latitude;
+        WEATHER_LON = pos.coords.longitude;
+        // Reverse geocode with Open-Meteo's /air-quality doesn't support names
+        // Use nominatim (free, no key) for city name
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${WEATHER_LAT}&lon=${WEATHER_LON}&format=json`)
+          .then(r => r.json())
+          .then(d => {
+            const city = d.address?.city || d.address?.town || d.address?.village || d.address?.county || "Your Location";
+            const state = d.address?.state_code || d.address?.state || "";
+            WEATHER_LOCATION_NAME = state ? `${city}, ${state}` : city;
+            MEM.userLocation = { lat: WEATHER_LAT, lon: WEATHER_LON, name: WEATHER_LOCATION_NAME };
+            // Update weather panel label
+            const lbl = document.getElementById("weather-location-name");
+            if (lbl) lbl.textContent = `Live Weather — ${WEATHER_LOCATION_NAME}`;
+            resolve(true);
+          })
+          .catch(() => resolve(true));
+      },
+      () => resolve(false), // denied — keep Fairfield TX default
+      { timeout: 5000 }
+    );
+  });
+}
+
+async function fetchLiveWeather() {
+  const panel = document.getElementById("weather-current");
+  const forecast = document.getElementById("weather-forecast");
+  const updated = document.getElementById("weather-updated");
+  try {
+    panel.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.35);animation:pulse 1s infinite">◈ CONNECTING TO WEATHER SATELLITES...</div>`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,et0_fao_evapotranspiration&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FChicago&forecast_days=7`;
+    const res = await fetch(url);
+    const data = await res.json();
+    liveWeatherData = data;
+
+    // Update MEM.weather with real data for GDD
+    if (data.daily) {
+      MEM.weather = data.daily.time.slice(0,7).map((date,i) => ({
+        date,
+        high: Math.round(data.daily.temperature_2m_max[i]),
+        low:  Math.round(data.daily.temperature_2m_min[i]),
+        precip: data.daily.precipitation_sum[i],
+        rainChance: data.daily.precipitation_probability_max[i],
+        et: data.daily.et0_fao_evapotranspiration?.[i]?.toFixed(2) || "—",
+        code: data.daily.weather_code[i]
+      }));
+      renderGDD();
+    }
+
+    // Current conditions
+    const c = data.current;
+    const wDesc = wxCode(c.weather_code);
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div>
+          <span style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:28px;color:#00d4ff">${Math.round(c.temperature_2m)}°F</span>
+          <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(0,212,255,.6);margin-left:8px">Feels ${Math.round(c.apparent_temperature)}°F</span>
+        </div>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:12px;color:#00d4ff">${wDesc}</span>
+      </div>
+      <div style="display:flex;gap:14px;font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.55)">
+        <span>💧 ${c.relative_humidity_2m}% RH</span>
+        <span>🌧 ${c.precipitation}"</span>
+        <span>💨 ${Math.round(c.wind_speed_10m)} mph</span>
+      </div>`;
+
+    // 7-day forecast
+    forecast.innerHTML = "";
+    (data.daily.time || []).slice(0,7).forEach((date,i) => {
+      const hi = Math.round(data.daily.temperature_2m_max[i]);
+      const lo = Math.round(data.daily.temperature_2m_min[i]);
+      const rain = data.daily.precipitation_probability_max[i] || 0;
+      const gdd = Math.max(0, ((hi+lo)/2) - 50).toFixed(1);
+      const et  = data.daily.et0_fao_evapotranspiration?.[i]?.toFixed(2) || "—";
+      const rainColor = rain >= 70 ? "red" : rain >= 40 ? "amber" : "green";
+      const d = new Date(date+"T12:00:00");
+      const day = d.toLocaleDateString("en-US",{weekday:"short",month:"numeric",day:"numeric"});
+      const row = document.createElement("div");
+      row.className = "data-row";
+      row.style.fontSize = "11px";
+      row.innerHTML = `
+        <span class="dr-lbl" style="min-width:70px">${day}</span>
+        <span style="color:#00d4ff">${hi}/${lo}°F</span>
+        <span style="color:rgba(0,212,255,.5)">GDD ${gdd}</span>
+        <span style="color:rgba(0,255,136,.7)">ET ${et}"</span>
+        <span class="hud-badge badge-${rainColor}">${rain}%</span>`;
+      forecast.appendChild(row);
+    });
+
+    updated.textContent = "· Updated " + new Date().toLocaleTimeString();
+
+    // Spray risk alert
+    const highRainDays = (data.daily.precipitation_probability_max||[]).slice(0,3).filter(p=>p>=60).length;
+    if(highRainDays > 0) {
+      const alertEl = document.getElementById("gdd-alert");
+      if(alertEl) alertEl.innerHTML = `◆ ⚠ Rain &gt;60% on ${highRainDays} of next 3 days — review spray window. GDD updated from live data.`;
+    }
+
+  } catch(err) {
+    panel.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#ff3b3b">⚠ Weather fetch failed: ${err.message}<br><span style="color:rgba(0,212,255,.4);font-size:9px">Check internet connection</span></div>`;
+  }
+}
+
+function wxCode(code) {
+  const map = {0:"Clear Sky",1:"Mainly Clear",2:"Partly Cloudy",3:"Overcast",45:"Foggy",48:"Icy Fog",51:"Light Drizzle",53:"Drizzle",55:"Heavy Drizzle",61:"Light Rain",63:"Rain",65:"Heavy Rain",71:"Light Snow",73:"Snow",75:"Heavy Snow",80:"Rain Showers",81:"Heavy Showers",82:"Violent Showers",95:"Thunderstorm",96:"Thunderstorm+Hail",99:"Heavy Thunderstorm"};
+  return map[code] || `Code ${code}`;
+}
+
+// ════════════════════════════════════════════════
+// CLAUDE API — with web search tool always available
+// ════════════════════════════════════════════════
+async function claude(messages, systemOverride, useWebSearch) {
+  const weatherSummary = liveWeatherData ? (() => {
+    const c = liveWeatherData.current;
+    const d = liveWeatherData.daily;
+    return `LIVE WEATHER NOW: ${Math.round(c.temperature_2m)}°F, ${wxCode(c.weather_code)}, ${c.relative_humidity_2m}% RH, wind ${Math.round(c.wind_speed_10m)} mph. 7-DAY FORECAST: ${(d.time||[]).slice(0,7).map((dt,i)=>`${dt}: ${Math.round(d.temperature_2m_max[i])}/${Math.round(d.temperature_2m_min[i])}°F, ${d.precipitation_probability_max[i]}% rain, ET ${d.et0_fao_evapotranspiration?.[i]?.toFixed(2)||"?"}"`).join(" | ")}.`;
+  })() : "Live weather: loading...";
+
+  const sys = systemOverride || `You are JARVIS, a highly intelligent AI life and work assistant with a refined female English accent. You speak like JARVIS from Iron Man — precise, efficient, slightly formal, occasionally saying "Sir". You are not only a golf course expert but a full personal life assistant.
+
+TODAY: ${getLiveDate()} at ${getLiveTime()}.
+USER LOCATION: ${MEM.userLocation.name}
+${weatherSummary}
+COURSE DATA: ${MEM.getContext()}
+
+YOUR CAPABILITIES:
+- Web search: look up current news, sports scores, prices, product labels, research, restaurants, local info, anything
+- Document analysis: read and interpret any uploaded file
+- Smart data storage: automatically log data to the correct category and confirm it
+- Life assistant: help with personal tasks, scheduling, travel, food, health, advice, family, finances, entertainment
+- Golf course expert: agronomy, PGR timing, spray programs, equipment, turf health, tournaments
+
+STORAGE RULES — when user tells you data, confirm where it was stored:
+- Spray/chemical applications → "Logged to spray log, Sir."
+- Clipping yields → "Logged to clipping records, Sir."  
+- Personal notes/reminders → "Noted in personal memory, Sir."
+- Equipment service → "Logged to equipment records, Sir."
+- General observations → "Stored in field notes, Sir."
+
+When user asks about location (restaurants, weather, events, directions), use their location: ${MEM.userLocation.name}.
+Keep voice responses under 4 sentences. Be warm but efficient. Never say you cannot search the internet — use web search when needed.`;
+
+  const body = { model:CLAUDE_MODEL, max_tokens:1000, system:sys, messages };
+  if (useWebSearch) body.tools = [{ type:"web_search_20250305", name:"web_search" }];
+
+  const r = await fetch("/api/claude", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  });
+
+  // Surface real errors rather than swallowing them
+  if (!r.ok) {
+    let errMsg = `HTTP ${r.status}`;
+    try { const e = await r.json(); errMsg = e.error || e.message || errMsg; } catch {}
+    if (r.status === 500 && errMsg.includes("ANTHROPIC_API_KEY")) {
+      return "API key not found, Sir. Please set ANTHROPIC_API_KEY in Netlify → Site Configuration → Environment Variables, then redeploy.";
+    }
+    if (r.status === 401) return "API key is invalid, Sir. Please check the key in Netlify environment variables.";
+    if (r.status === 404) return "Proxy function not found, Sir. Make sure claude.js is in netlify/functions/ and redeploy.";
+    return `Connection error (${errMsg}), Sir. Please check Netlify function logs.`;
+  }
+
+  const d = await r.json();
+  if (d.error) return `JARVIS error: ${d.error}`;
+  // collect all text blocks (web search may produce multiple)
+  const text = (d.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+  return text || "I received an empty response, Sir. Please try again.";
+}
+
+async function claudeSearch(messages) {
+  const r = await fetch("/api/claude", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:CLAUDE_MODEL, max_tokens:1000,
+      tools:[{ type:"web_search_20250305", name:"web_search" }],
+      system:"You are a turf chemistry expert. Use web search to find current product label information. Return ONLY a JSON object with: name, activeIngredient, manufacturer, productType, signalWord, rei, targetPests, applicationRate, waterVolume, resistance, turfSafety, summary. No markdown, no backticks.",
+      messages
+    })
+  });
+  const d = await r.json();
+  const txt = (d.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+  if (!txt) return null;
+  try { return JSON.parse(txt.replace(/```json|```/g,"").trim()); }
+  catch { return { name:"Unknown", summary:txt, error:true }; }
+}
+
+// ════════════════════════════════════════════════
+// INTENT ROUTER — JARVIS figures out where to store data
+// ════════════════════════════════════════════════
+async function routeIntent(msg) {
+  const lower = msg.toLowerCase();
+
+  // Web search triggers — expanded for life assistant
+  const searchTriggers = ["weather","news","price","score","stock","search","look up","find","what is","who is","latest","current","today's","sports","nfl","nba","mlb","nhl","recipe","how do i","define","convert","calculate","near me","hours","open","closed","restaurant","movie","show","song","traffic","directions","forecast","breaking","happened","update on","tell me about","research","article","study"];
+  const needsSearch = searchTriggers.some(t => lower.includes(t));
+
+  // Data storage routing
+  const sprayTriggers = ["applied","sprayed","put out","fungicide","herbicide","insecticide","daconil","heritage","briskway","appear","primo","anuew","divanem","spraying","spray program"];
+  const yieldTriggers = ["yield","clipping","lbs","pounds","ounce","oz","basket"];
+  const equipTriggers = ["mower","equipment","roller","sprayer","reel","grind","bedknife","serviced","pm","maintenance","repaired","fixed","broke"];
+  const personalTriggers = ["remind me","remember that","note that","personal","family","doctor","appointment","birthday","groceries","shopping","dinner","lunch","breakfast","pick up","drop off","call","text","meeting","schedule","todo","to-do","task","errand","home","house","wife","husband","kids","children","son","daughter","mom","dad","friend"];
+  const reminderTriggers = ["remind me","don't forget","set a reminder","schedule","appointment at","meeting at","due on","due by","deadline"];
+
+  let stored = false;
+
+  if (sprayTriggers.some(t => lower.includes(t)) && (lower.includes("today")||lower.includes("applied")||lower.includes("sprayed")||lower.includes("put out")||lower.includes("this morning")||lower.includes("just"))) {
+    MEM.facts.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] SPRAY: ${msg}` });
+    MEM.sprayLogs.unshift({ id:Date.now(), date:new Date().toISOString().split("T")[0], area:"Greens", product:msg, status:"done", productInfo:null });
+    renderSprayLogs();
+    stored = "spray log";
+  } else if (yieldTriggers.some(t => lower.includes(t))) {
+    const lbMatch = msg.match(/(\d+)\s*(?:lb|pound)/i);
+    const ozMatch = msg.match(/(\d+)\s*(?:oz|ounce)/i);
+    if (lbMatch || ozMatch) {
+      MEM.clippings.unshift({ id:Date.now(), date:new Date().toISOString().split("T")[0], lbs:parseInt(lbMatch?.[1]||0), oz:parseInt(ozMatch?.[1]||0), condition:"verbal log", pgrActive:true, doubleMow:false });
+      renderClippings();
+      stored = "clipping yield";
+    }
+    MEM.facts.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] YIELD: ${msg}` });
+  } else if (equipTriggers.some(t => lower.includes(t))) {
+    MEM.facts.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] EQUIPMENT: ${msg}` });
+    stored = "equipment log";
+  } else if (reminderTriggers.some(t => lower.includes(t))) {
+    MEM.reminders.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] ${msg}` });
+    MEM.personal.push({ ts:new Date().toISOString(), text:msg, type:"reminder" });
+    renderMemory();
+    stored = "reminders";
+  } else if (personalTriggers.some(t => lower.includes(t))) {
+    MEM.personal.push({ ts:new Date().toISOString(), text:msg, type:"personal" });
+    MEM.facts.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] PERSONAL: ${msg}` });
+    renderMemory();
+    stored = "personal notes";
+  } else {
+    // General field / operational memory
+    const memTriggers = ["note","remember","log","record","today","this morning","just","we did","i did","mowed","rolled","aerated","topdressed","irrigated","fertilized","ordered","received","delivered"];
+    if (memTriggers.some(t => lower.includes(t))) {
+      MEM.facts.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] ${msg}` });
+      stored = "field notes";
+    }
+  }
+
+  if (stored) renderMemory();
+  return { needsSearch, stored };
+}
+
+// ════════════════════════════════════════════════
+// SEND MESSAGE — main brain
+// ════════════════════════════════════════════════
+let convHistory = [];
+
+async function sendMessage(text) {
+  const inp = document.getElementById("chat-input");
+  const msg = (text || inp.value).trim();
+  if (!msg) return;
+  inp.value = "";
+
+  addMessage("user", msg);
+  setAvatarState("thinking");
+
+  // Route intent — figure out storage and search needs
+  const { needsSearch, stored } = await routeIntent(msg);
+
+  // Build message with storage confirmation prefix if needed
+  let userContent = msg;
+  if (stored) userContent = `${msg}\n\n[SYSTEM: Data automatically logged to ${stored}. Confirm storage to user.]`;
+  if (needsSearch) userContent += `\n\n[SYSTEM: This query likely needs current information. Use web search.]`;
+
+  const userMsg = { role:"user", content:userContent };
+  convHistory.push(userMsg);
+
+  try {
+    showTyping();
+    const reply = await claude(convHistory, null, needsSearch);
+    convHistory.push({ role:"assistant", content:reply });
+    hideTyping();
+    addMessage("jarvis", reply);
+    speak(reply);
+  } catch(e) {
+    hideTyping();
+    addMessage("jarvis", `Connection issue, Sir: ${e.message}`);
+    setAvatarState("idle");
+  }
+}
+
+// ── Chat UI ──
+function addMessage(role, text) {
+  const wrap = document.getElementById("chat-messages");
+  const div = document.createElement("div");
+  div.className = `msg msg-${role}`;
+  div.innerHTML = `<div class="msg-bubble">${text}</div><div class="msg-role">${role==="user"?"SUPERINTENDENT":"JARVIS"}</div>`;
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+let typingEl = null;
+function showTyping() {
+  const wrap = document.getElementById("chat-messages");
+  typingEl = document.createElement("div");
+  typingEl.className = "msg msg-jarvis";
+  typingEl.innerHTML = `<div class="msg-bubble"><div class="typing"><div class="typing-dot" style="animation:pulse .5s infinite"></div><div class="typing-dot" style="animation:pulse .5s .2s infinite"></div><div class="typing-dot" style="animation:pulse .5s .4s infinite"></div></div></div>`;
+  wrap.appendChild(typingEl);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+function hideTyping() { if(typingEl) { typingEl.remove(); typingEl=null; } }
+
+document.getElementById("chat-input").addEventListener("keydown", e => {
+  if(e.key==="Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ── Text-to-speech — female English ──
+const FEMALE_VOICES = ["Google UK English Female","Serena","Karen","Moira","Samantha","Victoria","Fiona","Martha","Nicky"];
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g,"").replace(/\n/g," ").substring(0,600));
+  const trySpeak = () => {
+    const voices = window.speechSynthesis.getVoices();
+    let voice = null;
+    for (const pref of FEMALE_VOICES) {
+      voice = voices.find(v=>v.name===pref||v.name.includes(pref));
+      if(voice) break;
+    }
+    if(!voice) voice = voices.find(v=>v.lang==="en-GB");
+    if(!voice) voice = voices.find(v=>v.lang.startsWith("en"));
+    if(voice) utt.voice = voice;
+    utt.pitch = 1.1; utt.rate = 0.9; utt.volume = 1;
+    utt.onstart = () => { setAvatarState("speaking"); animateWave(true); };
+    utt.onend = () => { setAvatarState("idle"); animateWave(false); };
+    utt.onerror = () => { setAvatarState("idle"); animateWave(false); };
+    window.speechSynthesis.speak(utt);
+  };
+  if(window.speechSynthesis.getVoices().length===0) {
+    window.speechSynthesis.addEventListener("voiceschanged", trySpeak, {once:true});
+  } else { trySpeak(); }
+}
+
+function toggleSpeech() {
+  if(window.speechSynthesis?.speaking) { window.speechSynthesis.cancel(); setAvatarState("idle"); }
+  else { speak("JARVIS online. All systems nominal, Sir. How may I assist?"); }
+}
+
+// ── Avatar states ──
+function setAvatarState(state) {
+  const el = document.getElementById("avatar-svg");
+  const statusEl = document.getElementById("avatar-status-text");
+  const micBtn = document.getElementById("mic-btn");
+  const eyes = [document.getElementById("eye-left"), document.getElementById("eye-right")];
+
+  if(state==="speaking") {
+    el.style.filter = "drop-shadow(0 0 28px rgba(0,212,255,.8)) drop-shadow(0 0 50px rgba(0,212,255,.4))";
+    statusEl.textContent = "SPEAKING...";
+    statusEl.style.color = "#00d4ff";
+    eyes.forEach(e => { if(e) e.style.fill = "#00d4ff"; });
+    animateMouth(true);
+  } else if(state==="listening") {
+    el.style.filter = "drop-shadow(0 0 28px rgba(255,59,59,.7)) drop-shadow(0 0 50px rgba(255,59,59,.3))";
+    statusEl.textContent = "LISTENING...";
+    statusEl.style.color = "#ff3b3b";
+    eyes.forEach(e => { if(e) e.style.fill = "#ff6666"; });
+    animateMouth(false);
+  } else if(state==="thinking") {
+    el.style.filter = "drop-shadow(0 0 22px rgba(255,200,0,.5))";
+    statusEl.textContent = "PROCESSING...";
+    statusEl.style.color = "#ffaa00";
+    eyes.forEach(e => { if(e) e.style.fill = "#ffaa00"; });
+  } else {
+    el.style.filter = "drop-shadow(0 0 18px rgba(0,212,255,.5))";
+    statusEl.textContent = "SYSTEMS NOMINAL";
+    statusEl.style.color = "rgba(0,212,255,.4)";
+    eyes.forEach(e => { if(e) e.style.fill = "#00d4ff"; });
+    animateMouth(false);
+  }
+}
+
+// Mouth animation when talking
+let mouthInterval = null;
+function animateMouth(talking) {
+  const mouth = document.getElementById("mouth");
+  if(!mouth) return;
+  if(mouthInterval) { clearInterval(mouthInterval); mouthInterval=null; }
+  if(talking) {
+    let frame = 0;
+    const paths = [
+      "M 65 82 Q 80 88 95 82",
+      "M 65 80 Q 80 86 95 80",
+      "M 65 82 Q 80 90 95 82",
+      "M 65 83 Q 80 87 95 83",
+    ];
+    mouthInterval = setInterval(() => {
+      mouth.setAttribute("d", paths[frame % paths.length]);
+      frame++;
+    }, 120);
+  } else {
+    mouth.setAttribute("d", "M 65 82 Q 80 86 95 82");
+  }
+}
+
+// Waveform animation
+let waveInterval = null;
+function animateWave(active) {
+  const bars = document.querySelectorAll(".wave-bar");
+  if(waveInterval) { clearInterval(waveInterval); waveInterval=null; }
+  if(active) {
+    waveInterval = setInterval(() => {
+      bars.forEach(b => {
+        const h = active ? (Math.random() * 18 + 4) : 4;
+        b.style.height = h + "px";
+        b.classList.toggle("active", active);
+      });
+    }, 100);
+  } else {
+    bars.forEach((b,i) => {
+      const heights = [4,7,12,18,22,16,20,14,10,6];
+      b.style.height = heights[i] + "px";
+      b.classList.remove("active");
+    });
+  }
+}
+
+// Floating particles
+function spawnParticles() {
+  const container = document.getElementById("particles");
+  if(!container) return;
+  for(let i=0;i<8;i++) {
+    const p = document.createElement("div");
+    p.className = "particle";
+    p.style.cssText = `left:${20+Math.random()*130}px;top:${20+Math.random()*130}px;animation:particle ${1.5+Math.random()*2}s ease-out ${Math.random()*2}s infinite;background:${Math.random()>.5?"#00d4ff":"#00ff88"}`;
+    container.appendChild(p);
+  }
+}
+
+// ── Voice recognition ──
+let recognition = null;
+let isListening = false;
+
+function toggleMic() {
+  if(isListening) { stopListening(); return; }
+  startListening(transcript => {
+    sendMessage(transcript);
+  });
+}
+
+function startListening(onResult) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) { alert("Voice recognition requires Chrome or Edge. Please use Chrome desktop."); return; }
+  if(recognition) { try{recognition.abort();}catch{} }
+  recognition = new SR();
+  recognition.lang = "en-US";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onresult = e => {
+    const t = e.results[0]?.[0]?.transcript||"";
+    stopListening();
+    if(t) onResult(t);
+  };
+  recognition.onerror = () => stopListening();
+  recognition.onend = () => { if(isListening) stopListening(); };
+  try {
+    recognition.start();
+    isListening = true;
+    const btn = document.getElementById("mic-btn");
+    btn.classList.add("listening");
+    document.getElementById("mic-label").textContent = "◉ LISTENING — SPEAK NOW";
+    setAvatarState("listening");
+    animateWave(true);
+  } catch(e) { stopListening(); }
+}
+
+function stopListening() {
+  try{recognition?.stop();}catch{}
+  isListening = false;
+  const btn = document.getElementById("mic-btn");
+  btn.classList.remove("listening");
+  document.getElementById("mic-label").textContent = "PRESS TO SPEAK";
+  setAvatarState("idle");
+  animateWave(false);
+}
+
+// Spray dialog mic
+let sprayDialogListening = false;
+function sprayDialogMic() {
+  if(sprayDialogListening) { try{recognition?.stop();}catch{}; sprayDialogListening=false; return; }
+  const btn = document.getElementById("spray-mic-btn");
+  startListening(t => {
+    const details = document.getElementById("sp-details");
+    details.value = (details.value + " " + t).trim();
+    sprayDialogListening = false;
+    btn.style.borderColor = "rgba(0,212,255,.4)";
+  });
+  sprayDialogListening = true;
+  btn.style.borderColor = "#ff3b3b";
+  btn.style.boxShadow = "0 0 14px rgba(255,59,59,.4)";
+}
+
+// ── Screen navigation ──
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nav-tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById("screen-"+id).classList.add("active");
+  event.target.classList.add("active");
+}
+
+// ── Modals ──
+function openModal(id) { document.getElementById(id).classList.add("open"); }
+function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+document.querySelectorAll(".modal-overlay").forEach(m => m.addEventListener("click", e => { if(e.target===m) closeModal(m.id); }));
+
+function openSprayModal() {
+  document.getElementById("sp-date").value = new Date().toISOString().split("T")[0];
+  document.getElementById("sp-product").value = "";
+  document.getElementById("sp-details").value = "";
+  document.getElementById("sp-rate").value = "";
+  document.getElementById("sp-acres").value = "4.5";
+  document.getElementById("sp-wind").value = "";
+  document.getElementById("sp-temp").value = "";
+  document.getElementById("sp-notes").value = "";
+  document.getElementById("product-info-card").style.display = "none";
+  document.getElementById("product-loading").style.display = "none";
+  openModal("spray-modal");
+}
+
+async function saveSpray() {
+  const product = document.getElementById("sp-product").value.trim();
+  const details = document.getElementById("sp-details").value.trim();
+  if(!product) { alert("Please enter a product name."); return; }
+
+  const loadEl = document.getElementById("product-loading");
+  const cardEl = document.getElementById("product-info-card");
+  loadEl.style.display = "block";
+  cardEl.style.display = "none";
+
+  let info = null;
+  try {
+    info = await claudeSearch([{ role:"user", content:`Look up turf product: "${product}". ${details ? "Extra context: "+details : ""} Return JSON only.` }]);
+  } catch(e) { info = { name:product, summary:"Product lookup unavailable — check label manually.", error:true }; }
+
+  loadEl.style.display = "none";
+
+  const log = {
+    id: Date.now(),
+    date: document.getElementById("sp-date").value,
+    area: document.getElementById("sp-area").value,
+    product,
+    rate: document.getElementById("sp-rate").value,
+    acres: document.getElementById("sp-acres").value,
+    wind: document.getElementById("sp-wind").value,
+    temp: document.getElementById("sp-temp").value,
+    notes: document.getElementById("sp-notes").value,
+    status: "done",
+    productInfo: info
+  };
+
+  MEM.sprayLogs.unshift(log);
+  renderSprayLogs();
+  closeModal("spray-modal");
+
+  if(info && !info.error) {
+    addMessage("jarvis", `${product} logged, Sir. ${info.summary || ""}`);
+    speak(`${product} logged successfully. ${(info.summary||"").substring(0,150)}`);
+  }
+
+  MEM.facts.push({ ts:new Date().toISOString(), text:`[${log.date}] Applied ${product} on ${log.area} at ${log.rate || "standard rate"}` });
+  renderMemory();
+}
+
+// ── Live date/time awareness ──
+function getLiveDate() {
+  const now = new Date();
+  return now.toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+}
+function getLiveTime() {
+  return new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+}
+// Inject today's date into every Claude system prompt automatically
+const _origGetContext = MEM.getContext.bind(MEM);
+MEM.getContext = function() {
+  return `TODAY IS: ${getLiveDate()} at ${getLiveTime()}.\n` + _origGetContext();
+};
+
+// ── Universal file reader — handles text, binary, images, PDF, xlsx, docx ──
+async function readFileContent(file) {
+  const name = file.name.toLowerCase();
+  const textTypes = [".txt",".csv",".json",".md",".jsx",".js",".ts",".html",".xml",".yaml",".yml",".log",".rtf",".ics",".vcf"];
+  const isText = textTypes.some(ext => name.endsWith(ext));
+  const isImage = file.type.startsWith("image/");
+  const isPDF = name.endsWith(".pdf") || file.type === "application/pdf";
+
+  if (isImage) {
+    // Return base64 for image files so Claude can vision-analyze them
+    return await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = ev => res({ type:"image", data: ev.target.result, base64: ev.target.result.split(",")[1], mimeType: file.type });
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  if (isText) {
+    const text = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = ev => res(ev.target.result);
+      r.onerror = rej;
+      r.readAsText(file);
+    });
+    return { type:"text", content: text.substring(0, 12000) };
+  }
+
+  // For binary files (PDF, xlsx, docx, etc.) — read as text with latin1 to extract any readable strings,
+  // and also try ArrayBuffer for structured extraction hint
+  try {
+    const text = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = ev => res(ev.target.result);
+      r.onerror = rej;
+      r.readAsText(file, "latin1");
+    });
+    // Extract printable ASCII strings (like pdftotext would do roughly)
+    const printable = text.replace(/[^\x20-\x7E\n\r\t]/g," ").replace(/\s{3,}/g," ").substring(0, 10000);
+    return { type:"binary_extracted", content: printable, hint: `File type: ${file.type || name.split(".").pop().toUpperCase()}` };
+  } catch(e) {
+    return { type:"unknown", content: `Could not read file content. File: ${file.name}, Type: ${file.type}, Size: ${(file.size/1024).toFixed(1)} KB` };
+  }
+}
+
+// ── Single document upload ──
+async function handleDocUpload(e) {
+  const file = e.target.files?.[0];
+  if(!file) return;
+  await processSingleFile(file);
+  e.target.value = "";
+}
+
+// ── Multi document upload ──
+async function handleDocUploadMulti(e) {
+  const files = Array.from(e.target.files || []);
+  if(!files.length) return;
+  for (const file of files) {
+    await processSingleFile(file);
+  }
+  e.target.value = "";
+}
+
+async function processSingleFile(file) {
+  const analyzeEl = document.getElementById("doc-analyzing");
+  const resultEl = document.getElementById("doc-analysis");
+  analyzeEl.style.display = "block";
+  analyzeEl.textContent = `◈ Reading ${file.name}...`;
+  resultEl.style.display = "none";
+
+  const fileData = await readFileContent(file);
+
+  analyzeEl.textContent = `◈ Analyzing ${file.name} with JARVIS...`;
+
+  let analysis = "";
+  try {
+    if (fileData.type === "image") {
+      // Use Claude vision for images — route through proxy
+      const r = await fetch("/api/claude", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model: CLAUDE_MODEL, max_tokens: 800,
+          system: `You are JARVIS, golf course AI. Today is ${getLiveDate()}. Analyze this image in the context of the golf course operation and extract all relevant information. Course context: ${MEM.getContext()}`,
+          messages:[{ role:"user", content:[
+            { type:"image", source:{ type:"base64", media_type: fileData.mimeType, data: fileData.base64 }},
+            { type:"text", text:`This image is called "${file.name}". Describe what you see and extract all actionable information relevant to golf course management.` }
+          ]}]
+        })
+      });
+      const d = await r.json();
+      analysis = d.content?.[0]?.text || "Image received but could not be analyzed.";
+    } else {
+      const contentBlock = fileData.type === "text"
+        ? `Full content:\n\n${fileData.content}`
+        : `Extracted readable text (${fileData.hint}):\n\n${fileData.content}`;
+      analysis = await claude(
+        [{ role:"user", content:`I am uploading a file called "${file.name}".\n\n${contentBlock}\n\nToday is ${getLiveDate()}. Analyze this document in the context of my golf course operation at Island Course, Fairfield TX. Extract: key agronomic data, action items, dates, product names, rates, and how it connects to my current programs.` }],
+        `You are JARVIS, golf course AI. Today is ${getLiveDate()}. Analyze any document type and extract actionable turf management insights. Course context: ${MEM.getContext()}`
+      );
+    }
+  } catch(err) {
+    analysis = `File "${file.name}" stored. Analysis unavailable — check API connection. (${err.message})`;
+  }
+
+  MEM.documents.push({ name:file.name, type:fileData.type, analysis, ts:new Date().toISOString() });
+
+  analyzeEl.style.display = "none";
+  resultEl.style.display = "block";
+  resultEl.innerHTML = `<div style="color:rgba(0,212,255,.5);font-size:9px;margin-bottom:4px;letter-spacing:.1em">${file.name.toUpperCase()} · ${new Date().toLocaleTimeString()}</div>${analysis.replace(/\n/g,"<br>")}`;
+
+  // Add tag
+  const tags = document.getElementById("doc-tags");
+  const tag = document.createElement("span");
+  tag.className = "hud-badge badge-green";
+  tag.style.cssText = "margin-right:4px;margin-bottom:4px;cursor:pointer";
+  tag.title = analysis.substring(0,200);
+  const typeIcon = fileData.type==="image"?"🖼 ":file.name.endsWith(".pdf")?"📄 ":file.name.endsWith(".xlsx")||file.name.endsWith(".csv")?"📊 ":"📋 ";
+  tag.textContent = typeIcon + file.name;
+  // Click tag to re-show that doc's analysis
+  tag.onclick = () => { resultEl.style.display="block"; resultEl.innerHTML = `<div style="color:rgba(0,212,255,.5);font-size:9px;margin-bottom:4px;letter-spacing:.1em">${file.name.toUpperCase()}</div>${analysis.replace(/\n/g,"<br>")}`; };
+  tags.appendChild(tag);
+
+  // Add to memory
+  MEM.facts.push({ ts:new Date().toISOString(), text:`[${getLiveDate()}] Document uploaded and analyzed: ${file.name}` });
+  renderMemory();
+
+  speak(`${file.name} analyzed and stored, Sir. ${analysis.substring(0,140)}`);
+}
+
+// ── Arc meters ──
+function drawArc(svgId, value, max, color, label) {
+  const svg = document.getElementById(svgId);
+  if(!svg) return;
+  const cx=41,cy=41,r=32,circ=2*Math.PI*r;
+  const pct = Math.min(value/max,1);
+  svg.innerHTML = `
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(0,212,255,.08)" stroke-width="5"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="5"
+      stroke-dasharray="${circ*pct} ${circ}" stroke-linecap="round"
+      transform="rotate(-90 ${cx} ${cy})" style="transition:stroke-dasharray .6s ease"/>
+    <text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle"
+      fill="${color}" font-size="13" font-family="'Share Tech Mono',monospace" font-weight="bold">${value}</text>`;
+}
+
+// ── GDD calculations ──
+function calcGDD() {
+  return Math.round(MEM.weather.reduce((s,d)=>s+Math.max(0,((d.high+d.low)/2)-50),0));
+}
+
+function renderGDD() {
+  const gdd = calcGDD();
+  const pct = Math.min(Math.round((gdd/200)*100),100);
+  const color = pct>80?"#ff3b3b":pct>60?"#ffaa00":"#00d4ff";
+  drawArc("arc-stimp", 10, 14, "#ffaa00", "STIMP");
+  drawArc("arc-gdd", pct, 100, color, "GDD%");
+  drawArc("arc-acres", 4.5, 6, "#00ff88", "ACRES");
+  const bar = document.getElementById("gdd-bar");
+  if(bar) { bar.style.width=pct+"%"; bar.style.background=color; }
+  const txt = document.getElementById("gdd-text");
+  if(txt) txt.textContent = `${gdd} of 200 GDD (${pct}%) — Est. re-app: ${MEM.getReappDate()}`;
+  const alert = document.getElementById("gdd-alert");
+  if(alert) alert.textContent = `◆ PGR GDD: ${gdd}/200 (${pct}%) — Est re-app: ${MEM.getReappDate()}`;
+  // Totals
+  const primoT = document.getElementById("primo-total");
+  const anuewT = document.getElementById("anuew-total");
+  const reappD = document.getElementById("reapp-date");
+  if(primoT) primoT.textContent = ((MEM.pgrApp.primo*MEM.pgrApp.acres)/128).toFixed(2)+" qt";
+  if(anuewT) anuewT.textContent = ((MEM.pgrApp.anuew*MEM.pgrApp.acres)/128).toFixed(2)+" qt";
+  if(reappD) reappD.textContent = MEM.getReappDate();
+  // GDD log
+  const log = document.getElementById("gdd-log");
+  if(log) {
+    log.innerHTML = "";
+    let cum = 0;
+    MEM.weather.forEach(w => {
+      const g = Math.max(0,((w.high+w.low)/2)-50);
+      cum += g;
+      const row = document.createElement("div");
+      row.className = "data-row";
+      row.innerHTML = `<span class="dr-lbl">${w.date}</span><span>+${g.toFixed(1)} GDD</span><div style="flex:1;height:3px;background:rgba(0,212,255,.07);margin:0 8px;border-radius:2px;overflow:hidden"><div style="width:${Math.min((cum/200)*100,100)}%;height:100%;background:${cum>=200?"#ff3b3b":"#00d4ff"};border-radius:2px"></div></div><span style="color:rgba(0,212,255,.5);font-size:11px">Σ${cum.toFixed(0)}</span>`;
+      log.appendChild(row);
+    });
+    const sumEl = document.getElementById("gdd-summary");
+    if(sumEl) sumEl.textContent = `Avg GDD/day: ~${(gdd/MEM.weather.length).toFixed(1)} · ~${Math.max(0,Math.ceil((200-gdd)/20))} days to re-app threshold`;
+  }
+}
+
+// ── Render functions ──
+function renderSprayLogs() {
+  const list = document.getElementById("spray-list");
+  if(!list) return;
+  list.innerHTML = "";
+  MEM.sprayLogs.forEach(l => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,212,255,.07)";
+    const statusColor = l.status==="done"?"green":l.status==="missed"?"amber":"cyan";
+    row.innerHTML = `
+      <div>
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:600;color:#00d4ff;font-size:14px">${l.product}</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.4);margin-top:2px">${l.date} · ${l.area}${l.rate?" · "+l.rate:""}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        ${l.productInfo?`<button class="hud-btn sm" onclick="showProductInfo(${l.id})">LABEL ↗</button>`:""}
+        <span class="hud-badge badge-${statusColor}">${l.status.toUpperCase()}</span>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+function showProductInfo(id) {
+  const log = MEM.sprayLogs.find(l=>l.id===id);
+  if(!log?.productInfo) return;
+  const p = log.productInfo;
+  const fields = [["Active Ingredient",p.activeIngredient],["Manufacturer",p.manufacturer],["Type",p.productType],["Signal Word",p.signalWord],["REI",p.rei],["Target Pests",p.targetPests],["Rate",p.applicationRate],["Water Volume",p.waterVolume],["Resistance Group",p.resistance],["Turf Safety",p.turfSafety]].filter(f=>f[1]);
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay open";
+  modal.innerHTML = `<div class="modal-box">
+    <div class="modal-title">${p.name||p.productName||"Product Info"}</div>
+    <div class="product-info-card">${p.summary||""}</div>
+    ${fields.map(f=>`<div class="data-row"><span class="dr-lbl">${f[0]}</span><span class="dr-val">${f[1]}</span></div>`).join("")}
+    <div class="modal-actions"><button class="modal-save" onclick="this.closest('.modal-overlay').remove()">CLOSE</button></div>
+  </div>`;
+  modal.addEventListener("click", e=>{ if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+function renderClippings() {
+  const list = document.getElementById("clip-list");
+  if(!list) return;
+  list.innerHTML = "";
+  MEM.clippings.forEach(c => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,212,255,.07)";
+    row.innerHTML = `
+      <div>
+        <span style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:18px;color:#00d4ff">${c.lbs}lb ${c.oz}oz</span>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.4);margin-top:2px">${c.date} · ${c.condition}</div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
+        ${c.pgrActive?'<span class="hud-badge badge-green">PGR ACTIVE</span>':""}
+        ${c.doubleMow?'<span class="hud-badge badge-cyan">DOUBLE MOW</span>':""}
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+function saveClipping() {
+  const lbs = parseInt(document.getElementById("clip-lbs").value)||0;
+  const oz = parseInt(document.getElementById("clip-oz").value)||0;
+  if(!lbs && !oz) { alert("Please enter yield values."); return; }
+  MEM.clippings.unshift({
+    id:Date.now(),
+    date:document.getElementById("clip-date").value,
+    lbs,oz,
+    condition:document.getElementById("clip-cond").value||"dry",
+    pgrActive:document.getElementById("clip-pgr").checked,
+    doubleMow:document.getElementById("clip-double").checked,
+  });
+  renderClippings();
+  MEM.facts.push({ ts:new Date().toISOString(), text:`[${new Date().toLocaleDateString()}] Clipping yield: ${lbs}lb ${oz}oz` });
+  renderMemory();
+  document.getElementById("clip-lbs").value="";
+  document.getElementById("clip-oz").value="";
+  document.getElementById("clip-cond").value="";
+}
+
+function renderEquipment() {
+  const list = document.getElementById("equip-list");
+  if(!list) return;
+  list.innerHTML = "";
+  MEM.equipment.forEach(e => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,212,255,.07)";
+    const sc = e.status==="ok"?"green":e.status==="soon"?"amber":"red";
+    const led = e.status==="ok"?"led-green":e.status==="soon"?"led-amber":"led-red";
+    row.innerHTML = `
+      <div>
+        <div style="font-family:'Rajdhani',sans-serif;font-weight:600;color:#00d4ff;font-size:14px"><span class="status-led ${led}"></span>${e.name}</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(0,212,255,.4);margin-top:2px">${e.pmType} · Next: ${e.nextDue}</div>
+      </div>
+      <span class="hud-badge badge-${sc}">${e.status.toUpperCase()}</span>`;
+    list.appendChild(row);
+  });
+}
+
+function renderMemory() {
+  const list = document.getElementById("memory-list");
+  if(!list) return;
+  const all = [
+    ...MEM.personal.map(p=>({...p, category:"PERSONAL"})),
+    ...MEM.reminders.map(r=>({...r, category:"REMINDER"})),
+    ...MEM.facts.map(f=>({...f, category:"FIELD"}))
+  ].sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,40);
+  if(all.length===0) { list.innerHTML=`<div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:rgba(0,212,255,.28);padding:20px;text-align:center;line-height:2">No notes stored yet, Sir.<br><span style="font-size:10px">Talk to JARVIS or type — she stores everything automatically.</span></div>`; return; }
+  list.innerHTML="";
+  all.forEach(f=>{
+    const catColor = f.category==="PERSONAL"?"#00ff88":f.category==="REMINDER"?"#ffaa00":"rgba(0,212,255,.6)";
+    const row=document.createElement("div");
+    row.style.cssText="padding:7px 0;border-bottom:1px solid rgba(0,212,255,.07)";
+    row.innerHTML=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:${catColor};border:1px solid ${catColor};padding:0 4px;border-radius:2px">${f.category}</span><span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.28)">${new Date(f.ts).toLocaleString()}</span></div><div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:rgba(0,212,255,.78);line-height:1.5">${f.text}</div>`;
+    list.appendChild(row);
+  });
+}
+
+// ── Boot sequence ──
+function boot() {
+  const bootEl = document.getElementById("boot");
+  const statEl = document.getElementById("boot-status");
+  const bsvg = document.getElementById("boot-svg");
+  // animate boot rings
+  bsvg.querySelectorAll("circle").forEach((c,i) => {
+    if(i<3) {
+      c.style.transformOrigin="70px 70px";
+      c.style.animation=`spin${i%2===0?"":"r"} ${3+i}s linear infinite`;
+    }
+  });
+  const msgs = ["INITIALIZING SYSTEMS...","LOADING COURSE DATABASE...","CALIBRATING SENSORS...","CONNECTING AGRONOMIC AI...","ALL SYSTEMS NOMINAL."];
+  let i=0;
+  const seq = setInterval(()=>{
+    if(i<msgs.length) { statEl.textContent=msgs[i++]; }
+    else {
+      clearInterval(seq);
+      setTimeout(()=>{ bootEl.classList.add("done"); setTimeout(()=>bootEl.remove(),900); },400);
+    }
+  },420);
+}
+
+// ── Live clock ──
+function tickClock() {
+  const el = document.getElementById("live-datetime");
+  if(el) {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+    const timeStr = now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    el.textContent = `${dateStr} · ${timeStr}`;
+  }
+}
+
+// ════════════════════════════════════════════════
+// API KEY MANAGEMENT
+// On Netlify: key lives in server env vars — nothing needed here
+// For local file:// use: key stored in localStorage as fallback
+// ════════════════════════════════════════════════
+function loadApiKey() {
+  // Only relevant for local file:// testing — on Netlify the proxy handles the key
+  const key = localStorage.getItem("jarvis_api_key") || "";
+  const inputEl = document.getElementById("api-key-input");
+  if (key && inputEl) inputEl.value = key;
+  if (key) { window.__JARVIS_API_KEY = key; updateKeyStatus(true); }
+}
+
+function saveApiKey() {
+  const inputEl = document.getElementById("api-key-input");
+  if (!inputEl) return;
+  const key = inputEl.value.trim();
+  if (!key.startsWith("sk-ant")) {
+    const statusEl = document.getElementById("api-key-status");
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ff3b3b">⚠ Key should start with sk-ant-api... Check and try again.</span>`;
+    return;
+  }
+  localStorage.setItem("jarvis_api_key", key);
+  window.__JARVIS_API_KEY = key;
+  updateKeyStatus(true);
+  speak("API key saved, Sir. All AI systems are now fully operational.");
+  addMessage("jarvis","API key saved and activated. All systems fully operational, Sir.");
+}
+
+function updateKeyStatus(active) {
+  const s = document.getElementById("api-key-status");
+  const ss = document.getElementById("status-search");
+  const sc = document.getElementById("status-claude");
+  if (active) {
+    if(s) s.innerHTML = `<span style="color:#00ff88">✓ API key active</span>`;
+    if(ss) { ss.textContent="ACTIVE"; ss.className="hud-badge badge-green"; }
+    if(sc) { sc.textContent="ACTIVE"; sc.className="hud-badge badge-green"; }
+  } else {
+    if(s) s.innerHTML = `<span style="color:rgba(0,212,255,.4)">Running on Netlify — key is server-side.</span>`;
+  }
+}
+
+// API key lives in Netlify environment variables (ANTHROPIC_API_KEY)
+// All Claude calls go through /api/claude proxy — never exposed to browser
+// For local dev: set key in SETUP tab (stored in localStorage, injected client-side only when running file:// locally)
+
+// ════════════════════════════════════════════════
+// LIFE TAB — personal assistant
+// ════════════════════════════════════════════════
+const lifeNotes = [];
+
+function addLifeNote() {
+  const inp = document.getElementById("life-note-input");
+  const text = inp.value.trim();
+  if (!text) return;
+  lifeNotes.unshift({ ts: new Date().toISOString(), text });
+  MEM.facts.push({ ts: new Date().toISOString(), text: `[PERSONAL NOTE ${getLiveDate()}] ${text}` });
+  inp.value = "";
+  renderLifeNotes();
+  renderMemory();
+}
+
+function renderLifeNotes() {
+  const list = document.getElementById("life-notes-list");
+  if (!list) return;
+  if (lifeNotes.length === 0) return;
+  list.innerHTML = "";
+  lifeNotes.forEach((n, i) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(0,212,255,.07)";
+    row.innerHTML = `
+      <div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:rgba(0,212,255,.8)">${n.text}</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(0,212,255,.28);margin-top:2px">${new Date(n.ts).toLocaleString()}</div>
+      </div>
+      <button onclick="lifeNotes.splice(${i},1);renderLifeNotes();" style="background:none;border:none;color:rgba(255,59,59,.4);cursor:pointer;font-size:14px;padding:0 4px">×</button>`;
+    list.appendChild(row);
+  });
+}
+
+async function lifeQuery(query) {
+  if (!query || !query.trim()) return;
+  const resultEl = document.getElementById("life-result");
+  const searchEl = document.getElementById("life-searching");
+  if (!resultEl || !searchEl) {
+    // If called from chat context, just send as message
+    sendMessage(query);
+    return;
+  }
+  searchEl.style.display = "block";
+  resultEl.style.display = "none";
+  setAvatarState("thinking");
+  try {
+    const reply = await claude(
+      [{ role:"user", content:`${query}\n\nToday is ${getLiveDate()}. Use web search if you need current information.` }],
+      null, true
+    );
+    searchEl.style.display = "none";
+    resultEl.style.display = "block";
+    resultEl.innerHTML = reply.replace(/\n/g,"<br>");
+    addMessage("jarvis", reply);
+    speak(reply);
+  } catch(e) {
+    searchEl.style.display = "none";
+    resultEl.style.display = "block";
+    resultEl.textContent = "Search failed. Check your API key in the Setup tab, Sir.";
+    setAvatarState("idle");
+  }
+}
+
+// ── Init ──
+window.addEventListener("load", async () => {
+  loadApiKey();
+  boot();
+  tickClock();
+  setInterval(tickClock, 1000);
+  renderGDD();
+  renderSprayLogs();
+  renderClippings();
+  renderEquipment();
+  renderMemory();
+  spawnParticles();
+
+  // Detect location first, then fetch weather with correct coords
+  await detectLocation();
+  fetchLiveWeather();
+  setInterval(fetchLiveWeather, 30 * 60 * 1000);
+
+  // Initial JARVIS greeting
+  setTimeout(() => {
+    const loc = MEM.userLocation.name;
+    addMessage("jarvis",`JARVIS online. All systems nominal. Live weather connected for ${loc}. Island Course data loaded. I am monitoring your golf course, your schedule, and the world around you. How may I assist you today, Sir?`);
+    speak("JARVIS online. All systems nominal. How may I assist you today, Sir?");
+  }, 2000);
+});
+</script>
+</body>
+</html>
